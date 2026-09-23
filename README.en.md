@@ -4,6 +4,8 @@
 
 [中文版](README.md)
 
+> 🤖 **Authorship**: this script's code was **generated with AI assistance**, not hand-written word by word. The author read through the entire source and verified the core functionality in a real browser before publishing. AI-generated code may still contain edge cases that were not covered — use your own judgement. The source is fully public and reviewable; please [open an issue](https://github.com/saiyajiang/Bilibili-Search-Replace/issues) if you find anything.
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
@@ -104,6 +106,7 @@ Tested with Tampermonkey on Chromium and Firefox. The top search box is bound in
 
 ## Changelog
 
+- **2.1.3** — Disclosed that the code is AI-assisted (leading notice in `@description`, in-script "🤖 Authorship" section, and README note).
 - **2.1.2** — Cookie permission notice added to `@description` (shown on the Greasy Fork page); new in-script "🔐 Permission" section plus a footer entry; clear user-facing message when risk control blocks the request.
 - **2.1.1** — Removed leftover author metadata from the script; repo and script renamed to `Bilibili-Search-Replace`.
 - **2.1.0** — Fix `<em class="keyword">` leaking as plain text in titles (highlight now splits on tags before escaping); fix category filter returning zero results (dropped the conflicting `tid` param + added sub→top-level category mapping); thumbnail aspect ratio 16:10 → 16:9; **filter presets** with per-type defaults.
