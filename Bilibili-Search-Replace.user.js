@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         B站搜索替代器（自定义搜索面板）
 // @namespace    https://github.com/saiyajiang
-// @version      2.1.3
+// @version      2.1.4
 // @description  【编写说明】本脚本代码由 AI 辅助生成，作者已逐行审阅并在真实环境验证后发布；发现问题请在 GitHub 提 issue。｜【权限说明】本脚本会申请 Cookie 权限——仅用于在 B 站返回风控错误(-412/-352)时写入一个 buvid3 设备标识，不会读取、不会上传你的任何 Cookie（脚本无任何第三方服务器，全部请求直连 bilibili.com）。不需要可删除脚本第 25 行 @grant GM_cookie，其余功能不受影响。｜功能：接管 B 站顶部搜索：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，键盘流
 // @description:en  [Authorship] This script's code was generated with AI assistance; the author reviewed it line by line and verified it in a real environment before publishing. Please report issues on GitHub. | [Permission notice] This script requests the Cookie permission for ONE purpose only: writing a buvid3 device-id cookie when Bilibili returns risk-control errors (-412/-352). It never reads or uploads any of your cookies — there is no third-party server, all requests go directly to bilibili.com. You may delete line 25 (@grant GM_cookie) to drop the permission; everything else keeps working. | Features: replaces Bilibili's native search: official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, full keyboard flow.
 // @author       saiyajiang
@@ -48,6 +48,7 @@
     killDropdown: true,       // 屏蔽原生下拉（历史/大家都在搜/猜你想搜）
     hotkey: true,             // Alt + K 唤出
     suggest: true,            // 搜索建议
+    showHot: false,           // 空态显示 B 站热搜（默认关闭：需额外请求热搜接口）
     openInNewTab: false,      // 结果新标签打开
     showEntry: false,         // 右下角常驻入口
     defaultType: 'video',
@@ -1143,16 +1144,43 @@
       });
       chipsEl.appendChild(box);
     }
+
+    /* B 站热搜：默认关闭。
+     * 它要额外请求 s.search.bilibili.com/main/hotword，属于与搜索无关的网络请求，
+     * 所以默认不拉取；需要时在这里一键开启（设置里也有同一开关）。 */
     const h2 = document.createElement('div');
     h2.className = 'bcs-sechead';
-    h2.textContent = 'B 站热搜';
+    const hotLabel = document.createElement('span');
+    hotLabel.textContent = 'B 站热搜';
+    const hotBtn = document.createElement('button');
+    hotBtn.className = 'bcs-toggle' + (cfg.showHot ? ' on' : '');
+    hotBtn.textContent = cfg.showHot ? '已开启' : '已关闭';
+    hotBtn.title = '默认关闭：开启后会向 B 站请求热搜榜';
+    hotBtn.addEventListener('click', () => {
+      cfg.showHot = !cfg.showHot;
+      saveCfg();
+      showHome();
+    });
+    h2.appendChild(hotLabel);
+    h2.appendChild(hotBtn);
     chipsEl.appendChild(h2);
+
+    if (!cfg.showHot) {
+      // 关闭时不发任何热搜请求
+      setStatus(history.length ? '' : '输入关键词开始搜索');
+      renderFoot();
+      return;
+    }
+
     const box2 = document.createElement('div');
     box2.className = 'bcs-chips';
     box2.textContent = '加载中…';
     chipsEl.appendChild(box2);
     const words = await fetchHotword();
     box2.innerHTML = '';
+    if (!words.length) {
+      box2.textContent = '热搜加载失败';
+    }
     words.forEach(w => {
       const c = document.createElement('div');
       c.className = 'bcs-chip';
@@ -1392,13 +1420,20 @@
 
   /* --- 设置面板 --- */
   let pendingRerun = false;
+  let pendingIdleRefresh = false;
   function toggleSettings() {
     if (!settingsEl.hidden) {
       settingsEl.hidden = true;
       if (pendingRerun && state.kw) { pendingRerun = false; clearList(); runSearch(); }
+      else if (pendingIdleRefresh) { pendingIdleRefresh = false; refreshIdleView(); }
       return;
     }
     renderSettings();
+  }
+
+  // 关掉设置后，若处于空态则重画一次，让 showHot 之类开关立即生效
+  function refreshIdleView() {
+    if (!state.kw && !listEl.children.length) showHome();
   }
 
   function renderSettings() {
@@ -1440,6 +1475,7 @@
       ['killDropdown', '屏蔽搜索框下拉推荐', '隐藏历史记录、猜你想搜、大家都在搜'],
       ['hotkey', 'Alt + K 唤出面板', ''],
       ['suggest', '显示搜索建议', '输入时展示官方 suggest 词'],
+      ['showHot', '空态显示 B 站热搜', '默认关闭：开启后会额外请求热搜榜接口'],
       ['openInNewTab', '结果在新标签打开', ''],
       ['saveHistory', '保存本地搜索历史', '原生历史被屏蔽后，用这个替代'],
       ['strict', '严格过滤不相关结果', '标题未命中任何关键词的结果直接剔除'],
@@ -1466,7 +1502,7 @@
         <span>${cfg.blockUps.length ? cfg.blockUps.map(m => `<span class="bcs-tag"><b>${escapeHtml(m)}</b><i data-mid="${escapeHtml(m)}">✕</i></span>`).join('') : '<span style="color:var(--bcs-sub);font-size:12px">无</span>'}</span></div>
       <div class="bcs-set-row"><span>筛选预设<em>★ 设为该类目默认 · ✎ 重命名 · ✕ 删除；默认预设会在每次打开面板时自动套用</em></span>
         <span class="bcs-preset-list">${presets.length ? presets.map(p => `<span class="bcs-tag"><i data-pact="def" data-pid="${escapeHtml(p.id)}" title="设为默认">${p.def ? '★' : '☆'}</i><b>${escapeHtml(p.name)}</b><em style="font-style:normal">${typeLabel(p.type)}</em><i data-pact="ren" data-pid="${escapeHtml(p.id)}">✎</i><i data-pact="del" data-pid="${escapeHtml(p.id)}">✕</i></span>`).join('') : '<span style="color:var(--bcs-sub);font-size:12px">还没有预设，去筛选栏点「＋ 保存当前」</span>'}</span></div>
-      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.1.3 · AI 辅助编写 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
+      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.1.4 · AI 辅助编写 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
         <button class="bcs-toggle" data-act="reset">恢复默认</button></div>`;
 
     settingsEl.querySelectorAll('.bcs-set-row[data-key]').forEach(row => {
@@ -1483,6 +1519,9 @@
         if (k === 'strict') strictBtn.classList.toggle('on', cfg.strict);
         // 这些项会影响结果集，关掉设置面板时自动重搜
         if (['strict', 'blockWords', 'pageSize', 'defaultOrder'].indexOf(k) >= 0) pendingRerun = true;
+        // 热搜开关影响空态显示：这里只打标记，等关掉设置面板再重画，
+        // 否则历史/热搜 chips 会和设置面板同时显示，画面错乱
+        if (k === 'showHot') pendingIdleRefresh = true;
       });
     });
     settingsEl.querySelectorAll('[data-mid]').forEach(i => {
