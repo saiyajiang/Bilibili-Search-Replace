@@ -4,6 +4,8 @@
 
 **English version: [README.en.md](README.en.md)**
 
+> 🤖 **编写说明**：本脚本代码由 **AI 辅助生成**，并非作者逐字手写。作者已通读全部代码、并在真实浏览器环境中验证核心功能后发布。AI 生成的代码仍可能存在未被覆盖到的边界情况，使用前请自行判断；源码完全公开可审阅，发现问题欢迎[提 issue](https://github.com/saiyajiang/Bilibili-Search-Replace/issues)。
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
@@ -104,6 +106,7 @@ B 站默认的**综合排序**（`totalrank`）会掺入推广位，且只要命
 
 ## 更新记录
 
+- **2.1.3** — 标明脚本代码为 AI 辅助生成（`@description` 前置 + 脚本内「🤖 编写说明」区块 + README 声明）。
 - **2.1.2** — 在 `@description` 中前置 Cookie 权限说明（同步显示在 Greasy Fork 页面）；脚本内新增「🔐 权限说明」区块与页脚入口；风控拦截失败时给出明确的用户可见提示。
 - **2.1.1** — 移除脚本内残留的作者信息；仓库与脚本更名为 `Bilibili-Search-Replace`。
 - **2.1.0** — 修复标题里 `<em class="keyword">` 以纯文本漏出（改为先按标签切分再转义）；修复选分区反而零结果（去掉冲突的 `tid` 参数 + 增加子分区到一级分区映射）；封面比例 16:10 → 16:9；新增**筛选预设**及按类型设默认。
