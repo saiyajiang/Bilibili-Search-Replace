@@ -1,4 +1,4 @@
-# Bilibili-Search-Pro
+# Bilibili-Search-Replace
 
 > Replace Bilibili's native search with a custom panel: **official API + local relevance re-ranking**, so results stop being padded with loosely-matched and promoted content.
 
@@ -42,7 +42,7 @@ Category filtering maps **sub-category → top-level category** before comparing
 ## Install / 安装
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) (or Violentmonkey / Greasemonkey).
-2. Open [`Bilibili-Search-Pro.user.js`](Bilibili-Search-Pro.user.js) → *Raw* → install, or install from Greasyfork.
+2. Open [`Bilibili-Search-Replace.user.js`](Bilibili-Search-Replace.user.js) → *Raw* → install, or install from Greasyfork.
 3. **Recommended:** grant Tampermonkey cookie access. The script only uses it to seed `buvid3` when Bilibili returns risk-control codes `-412 / -352`. Everything works without it, minus that auto-recovery.
 
 ## Privacy / 隐私
