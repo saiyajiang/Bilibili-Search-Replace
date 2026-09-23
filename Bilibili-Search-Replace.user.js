@@ -21,9 +21,10 @@
 // @grant        GM_deleteValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_cookie
-// @note         Cookie 权限说明：脚本仅调用 GM_cookie.set() 这一个方法，且仅在 B 站返回风控错误(-412/-352)时执行，
-// @note         写入的是名为 buvid3 的设备标识（值取自 B 站官方指纹接口 /x/frontend/finger/spi）。
-// @note         脚本从不调用 GM_cookie.list/get/delete，因此无法读取你的登录态或其它任何 Cookie。
+// @note         Cookie 权限说明（可自行核对）：
+// @note           代码中 GM_cookie.set( 只出现 1 次，且仅在 B 站返回风控错误(-412/-352)时执行，
+// @note           写入的是名为 buvid3 的设备标识（值取自 B 站官方指纹接口 /x/frontend/finger/spi）。
+// @note           代码中不存在 GM_cookie.list( / .get( / .delete(，因此无法读取你的登录态或其它任何 Cookie。
 // @note         如不需要，删除上方 "@grant GM_cookie" 这一行即可彻底移除该权限，其余功能不受影响。
 // @connect      api.bilibili.com
 // @connect      s.search.bilibili.com
@@ -302,8 +303,8 @@
    *           这等价于 B 站自己在新设备上首次访问时做的事，用于让后续搜索请求通过校验。
    *
    * 安全边界（可自行核对）：
-   *   - 只写不读：全文仅出现这一处 GM_cookie.set，没有 GM_cookie.list / get / delete，
-   *     因此脚本无法读取你的登录态或任何其它 Cookie。
+   *   - 只写不读：代码中 GM_cookie.set( 只此一处，不存在 GM_cookie.list / get / delete
+   *     （可搜索验证），因此脚本无法读取你的登录态或任何其它 Cookie。
    *   - 不外传：写入的值直接来自 bilibili.com 自己返回的接口，脚本不拼接、不记录、不发送。
    *   - 不常驻：只在真正触发风控时执行一次（buvidFixed 标记，整个页面生命周期最多一次）。
    *
@@ -1412,8 +1413,9 @@
       <p><b>不想要这个权限？</b>删掉脚本头部 <code>// @grant GM_cookie</code>
       这一行即可彻底移除。代码已做保护，移除后其余功能<b>完全正常</b>，
       只是遇到风控时无法自动恢复（会提示你手动打开一次 B 站）。</p>
-      <p class="bcs-perm-tip">你可以自行核对：在脚本源码里搜索 <code>GM_cookie</code>，只有 2 处——
-      一行 <code>@grant</code> 声明和一次 <code>.set()</code> 调用。</p>
+      <p class="bcs-perm-tip">自行核对：在源码里搜索 <code>GM_cookie.set(</code> —— 只有 1 处（第 321 行附近）；
+      搜索 <code>GM_cookie.list(</code> / <code>.get(</code> / <code>.delete(</code> —— 0 处。
+      除了这一处写入，其它出现的地方都只是注释和这段文字本身。</p>
       </div>`;
 
     const rows = [
