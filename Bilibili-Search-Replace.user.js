@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         B站搜索替代器（自定义搜索面板）
-// @namespace    https://greasyfork.org/users/yuanbao
-// @version      2.1.0
+// @namespace    https://github.com/saiyajiang
+// @version      2.1.1
 // @description  接管 B 站顶部搜索：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，键盘流
 // @description:en  Replaces Bilibili's native search: official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, full keyboard flow.
-// @author       Yuanbao
+// @author       saiyajiang
 // @license      MIT
 // @homepageURL  https://github.com/saiyajiang/Bilibili-Search-Replace
 // @supportURL   https://github.com/saiyajiang/Bilibili-Search-Replace/issues
@@ -1385,7 +1385,7 @@
         <span>${cfg.blockUps.length ? cfg.blockUps.map(m => `<span class="bcs-tag"><b>${escapeHtml(m)}</b><i data-mid="${escapeHtml(m)}">✕</i></span>`).join('') : '<span style="color:var(--bcs-sub);font-size:12px">无</span>'}</span></div>
       <div class="bcs-set-row"><span>筛选预设<em>★ 设为该类目默认 · ✎ 重命名 · ✕ 删除；默认预设会在每次打开面板时自动套用</em></span>
         <span class="bcs-preset-list">${presets.length ? presets.map(p => `<span class="bcs-tag"><i data-pact="def" data-pid="${escapeHtml(p.id)}" title="设为默认">${p.def ? '★' : '☆'}</i><b>${escapeHtml(p.name)}</b><em style="font-style:normal">${typeLabel(p.type)}</em><i data-pact="ren" data-pid="${escapeHtml(p.id)}">✎</i><i data-pact="del" data-pid="${escapeHtml(p.id)}">✕</i></span>`).join('') : '<span style="color:var(--bcs-sub);font-size:12px">还没有预设，去筛选栏点「＋ 保存当前」</span>'}</span></div>
-      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.1.0 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
+      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.1.1 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
         <button class="bcs-toggle" data-act="reset">恢复默认</button></div>`;
 
     settingsEl.querySelectorAll('.bcs-set-row[data-key]').forEach(row => {
