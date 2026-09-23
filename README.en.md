@@ -23,7 +23,14 @@
 | **No third-party server** | Every request goes to `api.bilibili.com` / `s.search.bilibili.com`. No other domain appears in the code |
 | **Not persistent** | Runs once, only when risk control actually triggers — at most once per page lifetime |
 
-**Verify it yourself:** search the source for `GM_cookie`. There are only 2 hits — one `@grant` declaration and one `.set()` call.
+**Verify it yourself** — search the source:
+
+| Search for | Result |
+|---|---|
+| `GM_cookie.set(` | **1 hit** (the write described above) |
+| `GM_cookie.list(` / `.get(` / `.delete(` | **0 hits** |
+
+Aside from that single write, every other occurrence of `GM_cookie` in the file is a comment or this explanatory text.
 
 **Don't want the permission?** Delete this line from the script header and it's gone entirely:
 
