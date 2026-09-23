@@ -8,6 +8,31 @@
 
 ---
 
+## ⚠️ About the Cookie permission (please read before installing)
+
+**Tampermonkey will warn that this script requests Cookie access. That is a high-sensitivity permission and you deserve to know exactly what it is used for.**
+
+**The single purpose:** when Bilibili returns risk-control codes `-412 (request intercepted)` / `-352 (insufficient risk level)`, the script calls Bilibili's own fingerprint endpoint `/x/frontend/finger/spi`, takes the device id `b_3` from the response, and writes it into a cookie named `buvid3` (domain `.bilibili.com`, 1 year) so subsequent search requests pass validation. This is exactly what Bilibili itself does the first time you visit from a new device.
+
+**What it does NOT do** (all verifiable):
+
+| Boundary | Detail |
+|---|---|
+| **Write-only** | There is exactly one `GM_cookie.set()` call in the whole file. **No** `GM_cookie.list` / `get` / `delete` — so the script **cannot read** your login session or any other cookie |
+| **Nothing sent out** | The written value comes straight from bilibili.com's own response; the script does not construct, log or transmit it |
+| **No third-party server** | Every request goes to `api.bilibili.com` / `s.search.bilibili.com`. No other domain appears in the code |
+| **Not persistent** | Runs once, only when risk control actually triggers — at most once per page lifetime |
+
+**Verify it yourself:** search the source for `GM_cookie`. There are only 2 hits — one `@grant` declaration and one `.set()` call.
+
+**Don't want the permission?** Delete this line from the script header and it's gone entirely:
+
+```js
+// @grant        GM_cookie
+```
+
+The code is guarded by `typeof GM_cookie === 'undefined'`, so **everything else keeps working**. The only difference: on `-412 / -352` it cannot auto-recover, and the script will tell you to open www.bilibili.com once manually.
+
 ## Install
 
 | Source | Link |
@@ -17,7 +42,7 @@
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) (or Violentmonkey / Greasemonkey).
 2. Install from the Greasy Fork page above, or open the `.user.js` file on GitHub.
-3. **Recommended:** grant Tampermonkey cookie access. It is used only to seed `buvid3` when Bilibili returns risk-control codes `-412 / -352`. Everything works without it, minus that auto-recovery.
+3. The cookie permission is **optional** — the script works either way. If you'd rather not grant it, delete the `@grant GM_cookie` line before installing.
 
 ## Why
 
@@ -64,7 +89,7 @@ Category filtering maps **sub-category → top-level category** before comparing
 | `GM_addStyle` | Inject panel styles |
 | `GM_setValue` / `GM_getValue` | Persist settings, history, presets, WBI key cache |
 | `GM_registerMenuCommand` | Tampermonkey menu entry |
-| `GM_cookie` | Seed `buvid3` on risk-control errors (optional) |
+| `GM_cookie` | **Optional.** Writes a `buvid3` device-id cookie only on risk-control errors `-412 / -352` (write-only, never reads). Delete the line to drop the permission entirely — see "About the Cookie permission" above |
 
 ## Compatibility
 
@@ -72,6 +97,7 @@ Tested with Tampermonkey on Chromium and Firefox. The top search box is bound in
 
 ## Changelog
 
+- **2.1.2** — Cookie permission notice added to `@description` (shown on the Greasy Fork page); new in-script "🔐 Permission" section plus a footer entry; clear user-facing message when risk control blocks the request.
 - **2.1.1** — Removed leftover author metadata from the script; repo and script renamed to `Bilibili-Search-Replace`.
 - **2.1.0** — Fix `<em class="keyword">` leaking as plain text in titles (highlight now splits on tags before escaping); fix category filter returning zero results (dropped the conflicting `tid` param + added sub→top-level category mapping); thumbnail aspect ratio 16:10 → 16:9; **filter presets** with per-type defaults.
 - **2.0.0** — Local relevance re-ranking and strict filtering; time / danmaku / play / duration / category filters; query syntax (`-word`, `"phrase"`, `up:`); local history; UP & word blocking.
