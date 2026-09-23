@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         B站搜索替代器（自定义搜索面板）
 // @namespace    https://github.com/saiyajiang
-// @version      2.1.2
-// @description  【权限说明】本脚本会申请 Cookie 权限——仅用于在 B 站返回风控错误(-412/-352)时写入一个 buvid3 设备标识，不会读取、不会上传你的任何 Cookie（脚本无任何第三方服务器，全部请求直连 bilibili.com）。不需要可删除脚本第 23 行 @grant GM_cookie，其余功能不受影响。｜功能：接管 B 站顶部搜索：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，键盘流
-// @description:en  [Permission notice] This script requests the Cookie permission for ONE purpose only: writing a buvid3 device-id cookie when Bilibili returns risk-control errors (-412/-352). It never reads or uploads any of your cookies — there is no third-party server, all requests go directly to bilibili.com. You may delete line 23 (@grant GM_cookie) to drop the permission; everything else keeps working. | Features: replaces Bilibili's native search: official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, full keyboard flow.
+// @version      2.1.3
+// @description  【编写说明】本脚本代码由 AI 辅助生成，作者已逐行审阅并在真实环境验证后发布；发现问题请在 GitHub 提 issue。｜【权限说明】本脚本会申请 Cookie 权限——仅用于在 B 站返回风控错误(-412/-352)时写入一个 buvid3 设备标识，不会读取、不会上传你的任何 Cookie（脚本无任何第三方服务器，全部请求直连 bilibili.com）。不需要可删除脚本第 25 行 @grant GM_cookie，其余功能不受影响。｜功能：接管 B 站顶部搜索：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，键盘流
+// @description:en  [Authorship] This script's code was generated with AI assistance; the author reviewed it line by line and verified it in a real environment before publishing. Please report issues on GitHub. | [Permission notice] This script requests the Cookie permission for ONE purpose only: writing a buvid3 device-id cookie when Bilibili returns risk-control errors (-412/-352). It never reads or uploads any of your cookies — there is no third-party server, all requests go directly to bilibili.com. You may delete line 25 (@grant GM_cookie) to drop the permission; everything else keeps working. | Features: replaces Bilibili's native search: official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, full keyboard flow.
 // @author       saiyajiang
 // @license      MIT
 // @homepageURL  https://github.com/saiyajiang/Bilibili-Search-Replace
@@ -21,6 +21,10 @@
 // @grant        GM_deleteValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_cookie
+// @note         编写说明：本脚本代码由 AI 辅助生成，非作者逐字手写。
+// @note         作者已通读全部代码、在真实浏览器环境验证核心功能后发布，
+// @note         但 AI 生成的代码仍可能存在未覆盖到的边界情况，使用前请自行判断，
+// @note         遇到问题欢迎在 GitHub 提 issue（见 @supportURL）。
 // @note         Cookie 权限说明（可自行核对）：
 // @note           代码中 GM_cookie.set( 只出现 1 次，且仅在 B 站返回风控错误(-412/-352)时执行，
 // @note           写入的是名为 buvid3 的设备标识（值取自 B 站官方指纹接口 /x/frontend/finger/spi）。
@@ -743,6 +747,9 @@
     .bcs-perm p{margin:0 0 8px;color:var(--bcs-fg)}
     .bcs-perm p:last-child{margin-bottom:0}
     .bcs-perm-tip{color:var(--bcs-sub)!important;font-size:12px}
+    .bcs-perm-ai{border-style:dashed;margin-bottom:10px}
+    .bcs-perm a{color:var(--bcs-accent);text-decoration:none}
+    .bcs-perm a:hover{text-decoration:underline}
     .bcs-perm code{background:var(--bcs-hover);padding:1px 5px;border-radius:4px;
       font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
     .bcs-help{font-size:12px;color:var(--bcs-sub);line-height:1.9;padding:4px 2px}
@@ -1400,6 +1407,16 @@
     // 权限说明区块（置顶，配合 Greasy Fork 页面上的 @description 提示）
     // 注意：必须在 settingsEl.innerHTML 赋值之后再插入，否则会被覆盖
     const permHtml = `
+      <div class="bcs-perm bcs-perm-ai">
+      <div class="bcs-perm-h">🤖 编写说明：AI 辅助生成</div>
+      <p>本脚本的代码由 <b>AI 辅助生成</b>，并非作者逐字手写。作者已通读全部代码、
+      并在真实浏览器环境中验证核心功能后发布。</p>
+      <p>需要你知道的是：<b>AI 生成的代码可能存在未被覆盖到的边界情况</b>。
+      脚本不涉及你的账号安全操作（不读取 Cookie、不上传任何数据），
+      但功能层面若有异常，欢迎在
+      <a href="https://github.com/saiyajiang/Bilibili-Search-Replace/issues" target="_blank" rel="noopener">GitHub 提 issue</a>
+      反馈，源码完全公开可自行审阅。</p>
+      </div>
       <div class="bcs-perm">
       <div class="bcs-perm-h">🔐 关于 Cookie 权限</div>
       <p><b>脚本会申请 Cookie 权限，只为一件事</b>：当 B 站接口返回风控错误
@@ -1449,7 +1466,7 @@
         <span>${cfg.blockUps.length ? cfg.blockUps.map(m => `<span class="bcs-tag"><b>${escapeHtml(m)}</b><i data-mid="${escapeHtml(m)}">✕</i></span>`).join('') : '<span style="color:var(--bcs-sub);font-size:12px">无</span>'}</span></div>
       <div class="bcs-set-row"><span>筛选预设<em>★ 设为该类目默认 · ✎ 重命名 · ✕ 删除；默认预设会在每次打开面板时自动套用</em></span>
         <span class="bcs-preset-list">${presets.length ? presets.map(p => `<span class="bcs-tag"><i data-pact="def" data-pid="${escapeHtml(p.id)}" title="设为默认">${p.def ? '★' : '☆'}</i><b>${escapeHtml(p.name)}</b><em style="font-style:normal">${typeLabel(p.type)}</em><i data-pact="ren" data-pid="${escapeHtml(p.id)}">✎</i><i data-pact="del" data-pid="${escapeHtml(p.id)}">✕</i></span>`).join('') : '<span style="color:var(--bcs-sub);font-size:12px">还没有预设，去筛选栏点「＋ 保存当前」</span>'}</span></div>
-      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.1.1 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
+      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.1.3 · AI 辅助编写 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
         <button class="bcs-toggle" data-act="reset">恢复默认</button></div>`;
 
     settingsEl.querySelectorAll('.bcs-set-row[data-key]').forEach(row => {
