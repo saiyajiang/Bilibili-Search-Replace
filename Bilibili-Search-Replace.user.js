@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         B站搜索替代器（自定义搜索面板）
 // @namespace    https://github.com/saiyajiang
-// @version      2.1.1
-// @description  接管 B 站顶部搜索：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，键盘流
-// @description:en  Replaces Bilibili's native search: official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, full keyboard flow.
+// @version      2.1.2
+// @description  【权限说明】本脚本会申请 Cookie 权限——仅用于在 B 站返回风控错误(-412/-352)时写入一个 buvid3 设备标识，不会读取、不会上传你的任何 Cookie（脚本无任何第三方服务器，全部请求直连 bilibili.com）。不需要可删除脚本第 23 行 @grant GM_cookie，其余功能不受影响。｜功能：接管 B 站顶部搜索：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，键盘流
+// @description:en  [Permission notice] This script requests the Cookie permission for ONE purpose only: writing a buvid3 device-id cookie when Bilibili returns risk-control errors (-412/-352). It never reads or uploads any of your cookies — there is no third-party server, all requests go directly to bilibili.com. You may delete line 23 (@grant GM_cookie) to drop the permission; everything else keeps working. | Features: replaces Bilibili's native search: official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, full keyboard flow.
 // @author       saiyajiang
 // @license      MIT
 // @homepageURL  https://github.com/saiyajiang/Bilibili-Search-Replace
@@ -21,6 +21,10 @@
 // @grant        GM_deleteValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_cookie
+// @note         Cookie 权限说明：脚本仅调用 GM_cookie.set() 这一个方法，且仅在 B 站返回风控错误(-412/-352)时执行，
+// @note         写入的是名为 buvid3 的设备标识（值取自 B 站官方指纹接口 /x/frontend/finger/spi）。
+// @note         脚本从不调用 GM_cookie.list/get/delete，因此无法读取你的登录态或其它任何 Cookie。
+// @note         如不需要，删除上方 "@grant GM_cookie" 这一行即可彻底移除该权限，其余功能不受影响。
 // @connect      api.bilibili.com
 // @connect      s.search.bilibili.com
 // @run-at       document-idle
@@ -289,6 +293,24 @@
     });
   }
 
+  /* ------------------------------------------------------------------
+   * Cookie 权限的唯一用途
+   *
+   * 触发条件：仅当 B 站接口返回风控错误码 -412「请求被拦截」或 -352「风险等级不足」时。
+   * 做了什么：调用 B 站官方指纹接口 /x/frontend/finger/spi 取一个设备标识 b_3，
+   *           然后写入名为 buvid3 的 Cookie（域名 .bilibili.com，有效期 1 年）。
+   *           这等价于 B 站自己在新设备上首次访问时做的事，用于让后续搜索请求通过校验。
+   *
+   * 安全边界（可自行核对）：
+   *   - 只写不读：全文仅出现这一处 GM_cookie.set，没有 GM_cookie.list / get / delete，
+   *     因此脚本无法读取你的登录态或任何其它 Cookie。
+   *   - 不外传：写入的值直接来自 bilibili.com 自己返回的接口，脚本不拼接、不记录、不发送。
+   *   - 不常驻：只在真正触发风控时执行一次（buvidFixed 标记，整个页面生命周期最多一次）。
+   *
+   * 不需要该权限：删掉脚本头部 "// @grant GM_cookie" 这一行即可。
+   * 代码已用 typeof GM_cookie === 'undefined' 做了保护，移除后其余功能完全正常，
+   * 只是遇到 -412/-352 时无法自动恢复（此时会提示你手动访问一次 bilibili.com）。
+   * ------------------------------------------------------------------ */
   let buvidFixed = false;
   async function ensureBuvid3() {
     if (buvidFixed || typeof GM_cookie === 'undefined') return;
@@ -309,7 +331,15 @@
     let json = await gmFetch(url);
     if (json && (json.code === -412 || json.code === -352) && !retry) {
       await ensureBuvid3();
-      return apiGet(url, true);
+      const again = await apiGet(url, true);
+      if (again && (again.code === -412 || again.code === -352)) {
+        const noCookie = typeof GM_cookie === 'undefined';
+        throw new Error('B 站风控拦截（code ' + again.code + '）。' +
+          (noCookie
+            ? '当前脚本未申请 Cookie 权限，无法自动补种设备标识，请手动打开一次 www.bilibili.com 再重试。'
+            : '自动补种设备标识后仍被拦截，请手动打开一次 www.bilibili.com（或重新登录）后再重试。'));
+      }
+      return again;
     }
     return json;
   }
@@ -706,6 +736,14 @@
     .bcs-tag b{font-weight:400} .bcs-tag i{font-style:normal;cursor:pointer;color:var(--bcs-sub)} .bcs-tag i:hover{color:var(--bcs-accent)}
     .bcs-preset-list{max-width:460px;text-align:right;line-height:2.2}
     .bcs-preset-list .bcs-tag em{font-size:11px;opacity:.75;margin-left:2px}
+    .bcs-perm{border:1px solid var(--bcs-accent);border-radius:10px;padding:12px 14px;margin:6px 0 14px;
+      background:var(--bcs-input);font-size:12.5px;line-height:1.85}
+    .bcs-perm-h{font-size:14px;font-weight:700;color:var(--bcs-fg);margin-bottom:8px}
+    .bcs-perm p{margin:0 0 8px;color:var(--bcs-fg)}
+    .bcs-perm p:last-child{margin-bottom:0}
+    .bcs-perm-tip{color:var(--bcs-sub)!important;font-size:12px}
+    .bcs-perm code{background:var(--bcs-hover);padding:1px 5px;border-radius:4px;
+      font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
     .bcs-help{font-size:12px;color:var(--bcs-sub);line-height:1.9;padding:4px 2px}
     .bcs-help code{background:var(--bcs-hover);padding:1px 5px;border-radius:4px;font-family:ui-monospace,Menlo,Consolas,monospace}
     .bcs-entry{position:fixed;right:18px;bottom:18px;z-index:2147482999;width:46px;height:46px;border-radius:50%;
@@ -1283,7 +1321,7 @@
     footEl.innerHTML = `
       <span>↑↓ 选择 · Enter 打开 · Ctrl+Enter/中键 新标签 · Alt+K 唤出</span>
       <span style="margin-left:auto">
-        <a data-ext="bilibili">B站原版</a> · <a data-ext="google">Google</a> · <a data-ext="bing">Bing</a> · <a data-act="help">语法帮助</a>
+        <a data-ext="bilibili">B站原版</a> · <a data-ext="google">Google</a> · <a data-ext="bing">Bing</a> · <a data-act="help">语法帮助</a> · <a data-act="perm">🔐 权限说明</a>
       </span>`;
     [].forEach.call(footEl.querySelectorAll('[data-ext]'), el => {
       el.addEventListener('click', () => {
@@ -1295,6 +1333,9 @@
         window.open(u, '_blank', 'noopener');
       });
     });
+    const perm = footEl.querySelector('[data-act=perm]');
+    if (perm) perm.addEventListener('click', () => { renderSettings(); });
+
     const help = footEl.querySelector('[data-act=help]');
     if (help) help.addEventListener('click', () => {
       settingsEl.hidden = false;
@@ -1354,6 +1395,27 @@
 
   function renderSettings() {
     listEl.innerHTML = ''; chipsEl.hidden = true; setStatus('');
+
+    // 权限说明区块（置顶，配合 Greasy Fork 页面上的 @description 提示）
+    // 注意：必须在 settingsEl.innerHTML 赋值之后再插入，否则会被覆盖
+    const permHtml = `
+      <div class="bcs-perm">
+      <div class="bcs-perm-h">🔐 关于 Cookie 权限</div>
+      <p><b>脚本会申请 Cookie 权限，只为一件事</b>：当 B 站接口返回风控错误
+      <code>-412 请求被拦截</code> / <code>-352 风险等级不足</code> 时，写入一个名为
+      <code>buvid3</code> 的设备标识，让后续搜索请求能通过校验。这个值取自 B 站官方接口
+      <code>/x/frontend/finger/spi</code>，等同于 B 站在新设备上首次访问时自己做的事。</p>
+      <p><b>它没有做什么</b>：脚本全文只有一处 <code>GM_cookie.set()</code>（写入），
+      没有 <code>list</code> / <code>get</code> / <code>delete</code>，
+      因此<b>读不到</b>你的登录态或任何其它 Cookie；写入的值不外传，脚本也没有任何第三方服务器，
+      全部请求直连 <code>bilibili.com</code>。</p>
+      <p><b>不想要这个权限？</b>删掉脚本头部 <code>// @grant GM_cookie</code>
+      这一行即可彻底移除。代码已做保护，移除后其余功能<b>完全正常</b>，
+      只是遇到风控时无法自动恢复（会提示你手动打开一次 B 站）。</p>
+      <p class="bcs-perm-tip">你可以自行核对：在脚本源码里搜索 <code>GM_cookie</code>，只有 2 处——
+      一行 <code>@grant</code> 声明和一次 <code>.set()</code> 调用。</p>
+      </div>`;
+
     const rows = [
       ['hijackTopSearch', '接管顶部搜索框', '回车与搜索按钮走自定义面板'],
       ['killDropdown', '屏蔽搜索框下拉推荐', '隐藏历史记录、猜你想搜、大家都在搜'],
@@ -1364,7 +1426,7 @@
       ['strict', '严格过滤不相关结果', '标题未命中任何关键词的结果直接剔除'],
       ['showEntry', '右下角常驻入口按钮', '接管失败时会自动兜底出现']
     ];
-    settingsEl.innerHTML = rows.map(([k, label, desc]) => `
+    settingsEl.innerHTML = permHtml + rows.map(([k, label, desc]) => `
       <div class="bcs-set-row" data-key="${k}">
         <span>${label}${desc ? `<em>${desc}</em>` : ''}</span>
         <input type="checkbox" ${cfg[k] ? 'checked' : ''}>
