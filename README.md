@@ -1,76 +1,82 @@
 # Bilibili-Search-Replace
 
-> Replace Bilibili's native search with a custom panel: **official API + local relevance re-ranking**, so results stop being padded with loosely-matched and promoted content.
+> 用自定义面板接管 B 站原生搜索：**官方接口取数 + 本地相关性重判**，不再被泛匹配和推广位塞满结果。
 
-一个接管 B 站（Bilibili）顶部搜索的油猴脚本。官方搜索接口只作为数据源，相关性由脚本自己判定，并提供时间、弹幕量、播放量、时长、分区等多维筛选，筛选组合可保存为预设。
+**English version: [README.en.md](README.en.md)**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
 
-## Why / 为什么
+## 安装
 
-Bilibili's default **综合排序 (totalrank)** mixes in promoted slots and loose token matches — searching `赛博朋克2077` returns anything containing `赛博朋克`. Changing the UI alone doesn't fix that.
+| 渠道 | 地址 |
+|---|---|
+| **Greasy Fork** | <https://greasyfork.org/zh-CN/scripts/597082> |
+| GitHub 源码 | [Bilibili-Search-Replace.user.js](Bilibili-Search-Replace.user.js) |
 
-This script splits the job in two: the official API is only a **data source**, and relevance is **re-judged locally**:
+1. 安装 [Tampermonkey](https://www.tampermonkey.net/)（或 Violentmonkey / Greasemonkey）。
+2. 打开上面的 Greasy Fork 页面点安装，或直接打开 GitHub 上的 `.user.js` 文件。
+3. **建议**给 Tampermonkey cookie 权限：仅在 B 站返回风控码 `-412 / -352` 时用来补种 `buvid3`，不给也不影响正常使用。
 
-- **Strict filtering** (on by default): a result whose title matches none of the keywords is dropped outright.
-- **Relevance ranking** (default order): re-scores by how well the title / UP matches, instead of trusting the server order.
-- When filtering removes too much, the script auto-fetches more pages (up to 6) to refill the list — so narrowing filters doesn't empty the page.
+## 为什么
 
-## Features / 功能
+B 站默认的**综合排序**（`totalrank`）会掺入推广位，且只要命中分词片段就算相关——搜"赛博朋克2077"，标题里只有"赛博朋克"的也会进来。只换个界面治不了这个。
+
+本脚本把流程拆成两段：**官方接口只当数据源，相关性由脚本自己判**：
+
+- **严格过滤**（默认开启）：标题里一个关键词都没命中的结果直接剔除。
+- **相关度排序**（默认排序）：按标题 / UP 主命中情况重新打分，不迷信服务端顺序。
+- 过滤掉太多时，脚本会自动多抓几页（最多 6 页）补足，所以**收窄筛选不会把列表变空**。
+
+## 功能
 
 | | |
 |---|---|
-| **Search types** | Video · UP · Live · Movie/TV · Anime |
-| **Filters** | Time range (24h / week / month / 3 months / year / custom date range), danmaku count, play count, duration, category (18 top-level), UP followers, live viewers |
-| **Presets** | Save any filter combo as a named preset; mark one as default per search type — auto-applied every time the panel opens |
-| **Query syntax** | `-word` exclude · `"exact phrase"` · `up:name` · direct jump via `BV...` / `av123` / `uid123` / `room123` |
-| **Blocking** | Per-result hover buttons to block an UP or a word; global block lists in settings |
-| **History** | Native dropdown (history / trending / suggestions) is suppressed; the script keeps its own local history |
-| **Keyboard** | `Alt+K` open · `↑↓` select · `Enter` open · `Ctrl+Enter` / middle-click new tab · `Esc` close |
-| **Theming** | Auto / light / dark |
+| **搜索类型** | 视频 · UP 主 · 直播 · 影视 · 番剧 |
+| **筛选** | 时间范围（24小时 / 一周 / 一月 / 三月 / 一年 / 自定义起止日期）、弹幕量、播放量、时长、分区（18 个一级分区）、UP 主粉丝数、直播人气 |
+| **筛选预设** | 任意筛选组合可存成命名预设；可设为某个搜索类型的默认项，**每次打开面板自动套用** |
+| **搜索语法** | `-词` 排除 · `"精确短语"` · `up:名字` · `BV号 / av号 / uid / room` 直达 |
+| **屏蔽** | 悬停结果项可一键屏蔽该 UP 主或某个词；设置里有全局屏蔽清单 |
+| **本地历史** | 原生下拉（历史 / 大家都在搜 / 猜你想搜）被屏蔽，脚本自己存了一份本地历史 |
+| **键盘流** | `Alt+K` 唤出 · `↑↓` 选择 · `Enter` 打开 · `Ctrl+Enter` / 中键 新标签 · `Esc` 关闭 |
+| **主题** | 跟随系统 / 浅色 / 深色 |
 
-### Filter fallback design
+### 筛选的双保险设计
 
-Time, duration and category are sent **both** as server params (`pubtime_begin_s`, `duration`, `tids`) **and** re-validated locally against `pubdate` / seconds / `typeid`. If Bilibili renames a parameter, filtering still works.
+时间、时长、分区**同时**走服务端参数（`pubtime_begin_s`、`duration`、`tids`）和本地二次校验。就算 B 站哪天改了参数名，筛选照样生效。
 
-Note: **danmaku count and play count have no server-side parameter** in the public search API — those two are filtered purely client-side, which is why auto-pagination matters for them.
+注意：**弹幕数和播放量在公开搜索接口里没有对应参数**，这两项纯靠本地在返回结果上过滤——所以自动翻页对它们很关键。
 
-Category filtering maps **sub-category → top-level category** before comparing. Search results carry sub-category ids (e.g. `17` = single-player game) while the dropdown selects top-level (`4` = games); unknown ids are always passed through so filters can never empty the list.
+分区筛选会先做**子分区 → 一级分区**映射再比对。接口返回的 `typeid` 是子分区（如 `17` 单机游戏），下拉选的是一级分区（`4` 游戏）；映射表里查不到的 id 一律放行，保证筛选永远不会把结果清空。
 
-## Install / 安装
+## 隐私
 
-1. Install [Tampermonkey](https://www.tampermonkey.net/) (or Violentmonkey / Greasemonkey).
-2. Open [`Bilibili-Search-Replace.user.js`](Bilibili-Search-Replace.user.js) → *Raw* → install, or install from Greasyfork.
-3. **Recommended:** grant Tampermonkey cookie access. The script only uses it to seed `buvid3` when Bilibili returns risk-control codes `-412 / -352`. Everything works without it, minus that auto-recovery.
+- 请求**直连 `api.bilibili.com`**，用的是你自己浏览器的 Cookie。**没有第三方服务器、没有代理、没有任何遥测。**
+- 搜索历史、筛选预设、屏蔽清单都存在 `GM_setValue` 里，不上传。
+- WBI 签名（B 站 2023 年起强制）在本地计算，MD5 实现内置，**不依赖 CDN**。
 
-## Privacy / 隐私
+## 权限说明
 
-- Requests go **directly to `api.bilibili.com`**, using your own browser cookies. **No third-party server, no proxy, no telemetry.**
-- Search history, filter presets and block lists are stored locally via `GM_setValue` and never uploaded.
-- WBI signing (required by Bilibili since 2023) is computed locally; the MD5 implementation is bundled, with **no CDN dependency**.
-
-## Permissions / 所需权限
-
-| Grant | Why |
+| Grant | 用途 |
 |---|---|
-| `GM_xmlhttpRequest` | Call Bilibili search / suggest / hotword APIs cross-origin |
-| `GM_addStyle` | Inject panel styles |
-| `GM_setValue` / `GM_getValue` | Persist settings, history, presets, WBI key cache |
-| `GM_registerMenuCommand` | Tampermonkey menu entry |
-| `GM_cookie` | Seed `buvid3` on risk-control errors (optional) |
+| `GM_xmlhttpRequest` | 跨域调用 B 站搜索 / 建议词 / 热搜接口 |
+| `GM_addStyle` | 注入面板样式 |
+| `GM_setValue` / `GM_getValue` | 保存设置、历史、预设、WBI 密钥缓存 |
+| `GM_registerMenuCommand` | 油猴菜单入口 |
+| `GM_cookie` | 命中风控时补种 `buvid3`（可选） |
 
-## Compatibility / 兼容
+## 兼容
 
-Tested with Tampermonkey on Chromium and Firefox. The top search box is bound in the **capture phase** with `stopImmediatePropagation`, so Bilibili's own Vue listeners never fire (no native dropdown, no redirect to `search.bilibili.com`). A `MutationObserver` + periodic re-bind handles SPA re-renders; if the selectors ever break after a site redesign, a floating fallback button appears bottom-right.
+在 Chromium 与 Firefox 的 Tampermonkey 上测试通过。顶部搜索框是在**捕获阶段**用 `stopImmediatePropagation` 接管的，B 站自己的 Vue 监听器收不到事件（不会弹原生下拉、不会跳 `search.bilibili.com`）。SPA 重渲染由 `MutationObserver` + 定时重绑兜底；万一站点改版导致选择器失效，右下角会自动出现一个入口按钮。
 
-## Changelog / 更新
+## 更新记录
 
-- **2.1.0** — Fix `<em class="keyword">` leaking as plain text in titles (highlight now splits on tags before escaping); fix category filter returning zero results (dropped the conflicting `tid` param + added sub→top-level category mapping); thumbnail aspect ratio 16:10 → 16:9; **filter presets** with per-type defaults.
-- **2.0.0** — Local relevance re-ranking and strict filtering; time / danmaku / play / duration / category filters; query syntax (`-word`, `"phrase"`, `up:`); local history; UP & word blocking.
-- **1.2.0** — Initial release: WBI-signed official API, custom panel, keyboard flow.
+- **2.1.1** — 移除脚本内残留的作者信息；仓库与脚本更名为 `Bilibili-Search-Replace`。
+- **2.1.0** — 修复标题里 `<em class="keyword">` 以纯文本漏出（改为先按标签切分再转义）；修复选分区反而零结果（去掉冲突的 `tid` 参数 + 增加子分区到一级分区映射）；封面比例 16:10 → 16:9；新增**筛选预设**及按类型设默认。
+- **2.0.0** — 本地相关性重排与严格过滤；时间 / 弹幕 / 播放 / 时长 / 分区筛选；搜索语法（`-词`、`"短语"`、`up:`）；本地历史；UP 主与关键词屏蔽。
+- **1.2.0** — 首版：WBI 签名直连官方接口、自定义面板、键盘流。
 
-## License
+## 许可
 
-MIT — see [LICENSE](LICENSE).
+MIT — 见 [LICENSE](LICENSE)。
