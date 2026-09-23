@@ -73,6 +73,7 @@ This script splits the job in two: the official API is only a **data source**, a
 | **Query syntax** | `-word` exclude · `"exact phrase"` · `up:name` · direct jump via `BV...` / `av123` / `uid123` / `room123` |
 | **Blocking** | Per-result hover buttons to block an UP or a word; global block lists in settings |
 | **History** | Native dropdown (history / trending / suggestions) is suppressed; the script keeps its own local history |
+| **Hot search toggle** | Bilibili trending search is **off by default** (it needs an extra request); enable it from the empty-state panel or in settings |
 | **Keyboard** | `Alt+K` open · `↑↓` select · `Enter` open · `Ctrl+Enter` / middle-click new tab · `Esc` close |
 | **Theming** | Auto / light / dark |
 
@@ -94,7 +95,7 @@ Category filtering maps **sub-category → top-level category** before comparing
 
 | Grant | Why |
 |---|---|
-| `GM_xmlhttpRequest` | Call Bilibili search / suggest / hotword APIs cross-origin |
+| `GM_xmlhttpRequest` | Call Bilibili search / suggest APIs cross-origin (the hotword endpoint is only hit if you manually enable "Show hot search") |
 | `GM_addStyle` | Inject panel styles |
 | `GM_setValue` / `GM_getValue` | Persist settings, history, presets, WBI key cache |
 | `GM_registerMenuCommand` | Tampermonkey menu entry |
@@ -106,6 +107,7 @@ Tested with Tampermonkey on Chromium and Firefox. The top search box is bound in
 
 ## Changelog
 
+- **2.1.4** — Bilibili hot search is now **off by default** and behind a toggle: no hotword request is made while it's off. Turn it on from the idle panel button or via "Show hot search" in settings.
 - **2.1.3** — Disclosed that the code is AI-assisted (leading notice in `@description`, in-script "🤖 Authorship" section, and README note).
 - **2.1.2** — Cookie permission notice added to `@description` (shown on the Greasy Fork page); new in-script "🔐 Permission" section plus a footer entry; clear user-facing message when risk control blocks the request.
 - **2.1.1** — Removed leftover author metadata from the script; repo and script renamed to `Bilibili-Search-Replace`.
