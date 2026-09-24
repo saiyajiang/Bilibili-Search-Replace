@@ -71,11 +71,31 @@ This script splits the job in two: the official API is only a **data source**, a
 | **Filters** | Time range (24h / week / month / 3 months / year / custom date range), danmaku count, play count, duration, category (18 top-level), UP followers, live viewers |
 | **Presets** | Save any filter combo as a named preset; mark one as default per search type — auto-applied every time the panel opens |
 | **Query syntax** | `-word` exclude · `"exact phrase"` · `up:name` · direct jump via `BV...` / `av123` / `uid123` / `room123` |
-| **Blocking** | Per-result hover buttons to block an UP or a word; global block lists in settings |
+| **Track UP** | Weight an UP without following them: their videos get a score boost under relevance ranking; the boost strength is configurable |
+| **Blocking** | Per-result hover buttons to block an UP (**with a confirm step**) or a word; lists in settings show **both nickname and UID** |
+| **Config backup** | Export everything to a JSON file (settings, presets, block/track lists, history) and import it back; also available from the Tampermonkey menu |
 | **History** | Native dropdown (history / trending / suggestions) is suppressed; the script keeps its own local history |
 | **Hot search toggle** | Bilibili trending search is **off by default** (it needs an extra request); enable it from the empty-state panel or in settings |
 | **Keyboard** | `Alt+K` open · `↑↓` select · `Enter` open · `Ctrl+Enter` / middle-click new tab · `Esc` close |
 | **Theming** | Auto / light / dark |
+
+### Tracking UPs (weight without following)
+
+The follow list is account-level; many people don't want to follow someone just to change ordering. Tracking is a **local** list:
+
+- Hover a result and click "Track UP" to add it (click again to remove).
+- Under **relevance** ranking, videos from tracked UPs get a score boost and rank higher.
+- The boost strength is configurable (0 / +5 / +10 / +15 / +25 / +40). "No boost" only adds a star marker without changing order.
+- Tracking and blocking are mutually exclusive: blocking an UP removes it from the tracked list.
+- Lists show **both nickname and UID**, so you never have to guess who a bare number is.
+
+### Config backup
+
+The settings panel has a "Config backup" row that exports everything to a JSON file: script settings, filter presets, block and track lists (with nicknames), and search history.
+
+- Export builds the file locally and triggers a download — **no network involved**.
+- Use "Import from file" after reinstalling the script or moving to another browser/machine; you get a summary and a confirm step first.
+- Also available as "💾 Export config backup (JSON)" in the Tampermonkey menu.
 
 ### Filter fallback design
 
@@ -107,7 +127,8 @@ Tested with Tampermonkey on Chromium and Firefox. The top search box is bound in
 
 ## Changelog
 
-- **2.1.4** — Bilibili hot search is now **off by default** and behind a toggle: no hotword request is made while it's off. Turn it on from the idle panel button or via "Show hot search" in settings.
+- **2.2.0** — Hot search entry removed from the idle panel (toggle now lives only in settings); blocking an UP asks for confirmation; settings notices get an "I understand" button (expanded first time, collapsed once acknowledged); block/track lists show nickname + UID; **config export/import**; **Track UP** feature.
+- **2.1.4** — Bilibili hot search is now **off by default** and behind a toggle: no hotword request is made while it's off. Turn it on via "Show hot search" in settings.
 - **2.1.3** — Disclosed that the code is AI-assisted (leading notice in `@description`, in-script "🤖 Authorship" section, and README note).
 - **2.1.2** — Cookie permission notice added to `@description` (shown on the Greasy Fork page); new in-script "🔐 Permission" section plus a footer entry; clear user-facing message when risk control blocks the request.
 - **2.1.1** — Removed leftover author metadata from the script; repo and script renamed to `Bilibili-Search-Replace`.
