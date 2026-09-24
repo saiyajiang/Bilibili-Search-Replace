@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         B站搜索替代器（自定义搜索面板）
 // @namespace    https://github.com/saiyajiang
-// @version      2.1.4
+// @version      2.2.0
 // @description  【编写说明】本脚本代码由 AI 辅助生成，作者已逐行审阅并在真实环境验证后发布；发现问题请在 GitHub 提 issue。｜【权限说明】本脚本会申请 Cookie 权限——仅用于在 B 站返回风控错误(-412/-352)时写入一个 buvid3 设备标识，不会读取、不会上传你的任何 Cookie（脚本无任何第三方服务器，全部请求直连 bilibili.com）。不需要可删除脚本第 25 行 @grant GM_cookie，其余功能不受影响。｜功能：接管 B 站顶部搜索：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，键盘流
 // @description:en  [Authorship] This script's code was generated with AI assistance; the author reviewed it line by line and verified it in a real environment before publishing. Please report issues on GitHub. | [Permission notice] This script requests the Cookie permission for ONE purpose only: writing a buvid3 device-id cookie when Bilibili returns risk-control errors (-412/-352). It never reads or uploads any of your cookies — there is no third-party server, all requests go directly to bilibili.com. You may delete line 25 (@grant GM_cookie) to drop the permission; everything else keeps working. | Features: replaces Bilibili's native search: official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, full keyboard flow.
 // @author       saiyajiang
@@ -59,13 +59,42 @@
     fallback: 'bilibili',
     saveHistory: true,        // 本地保存搜索历史
     blockWords: [],           // 全局屏蔽词
-    blockUps: []              // 屏蔽的 UP 主 mid 列表
+    blockUps: [],             // 屏蔽的 UP 主：[{mid, name}]
+    trackUps: [],             // 追踪的 UP 主：[{mid, name}]，搜索时给这些 UP 的视频加权
+    trackBoost: 15,           // 追踪 UP 的加分权重
+    ackNotices: false         // 是否已点过「我已知晓」（true 后设置里的说明默认收起）
   };
+
+  /* UP 主名单统一为 {mid, name} 对象数组。
+   * 旧版本存的是纯 UID 字符串数组，这里做一次迁移，避免老用户升级后名单丢失。 */
+  function normalizeUpList(list) {
+    if (!Array.isArray(list)) return [];
+    const out = [];
+    list.forEach(x => {
+      if (x == null) return;
+      let mid, name = '';
+      if (typeof x === 'object') { mid = x.mid; name = x.name || x.uname || ''; }
+      else mid = x;
+      mid = String(mid == null ? '' : mid).trim();
+      if (!mid) return;
+      if (out.some(o => o.mid === mid)) return;
+      out.push({ mid: mid, name: String(name || '').trim() });
+    });
+    return out;
+  }
+  function upIndex(list, mid) {
+    mid = String(mid == null ? '' : mid);
+    return mid ? list.findIndex(o => o.mid === mid) : -1;
+  }
 
   let cfg = Object.assign({}, DEFAULT_CFG);
   try {
     const saved = GM_getValue(CFG_KEY, null);
-    if (saved) cfg = Object.assign({}, DEFAULT_CFG, JSON.parse(saved));
+    if (saved) {
+      cfg = Object.assign({}, DEFAULT_CFG, JSON.parse(saved));
+      cfg.blockUps = normalizeUpList(cfg.blockUps);
+      cfg.trackUps = normalizeUpList(cfg.trackUps);
+    }
   } catch (e) { }
   function saveCfg() { try { GM_setValue(CFG_KEY, JSON.stringify(cfg)); } catch (e) { } }
 
@@ -535,7 +564,12 @@
       else score -= 12;
     }
     // 屏蔽的 UP 主
-    if (it.mid && cfg.blockUps.indexOf(String(it.mid)) >= 0) return { drop: true, reason: 'blockup' };
+    if (it.mid && upIndex(cfg.blockUps, it.mid) >= 0) return { drop: true, reason: 'blockup' };
+    // 追踪的 UP 主：加权（只加分，不强制置顶，也不改变是否被剔除）
+    if (it.mid && upIndex(cfg.trackUps, it.mid) >= 0) {
+      score += (+cfg.trackBoost || 0);
+      it._tracked = true;
+    }
     return { drop: false, score, hitTitle };
   }
 
@@ -751,6 +785,11 @@
     .bcs-perm-ai{border-style:dashed;margin-bottom:10px}
     .bcs-perm a{color:var(--bcs-accent);text-decoration:none}
     .bcs-perm a:hover{text-decoration:underline}
+    .bcs-perm-ack{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:12px;color:var(--bcs-sub)}
+    .bcs-perm-ack .bcs-toggle{white-space:nowrap}
+    .bcs-perm-ack .bcs-ack{background:var(--bcs-accent);border-color:var(--bcs-accent);color:#fff}
+    .bcs-track{background:rgba(251,114,153,.15);color:var(--bcs-accent)}
+    .bcs-acts{flex-wrap:wrap}
     .bcs-perm code{background:var(--bcs-hover);padding:1px 5px;border-radius:4px;
       font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
     .bcs-help{font-size:12px;color:var(--bcs-sub);line-height:1.9;padding:4px 2px}
@@ -1056,19 +1095,46 @@
     }
   }
 
-  /* --- 结果项操作：屏蔽 UP / 排除词 --- */
+  /* --- 结果项操作：屏蔽 UP / 追踪 UP / 排除词 --- */
+  function upName(it) {
+    const n = plain(it.sub || '').trim();
+    return n || ('UID ' + String(it.mid || ''));
+  }
+
   function itemAction(btn) {
     const item = btn.closest('.bcs-item');
     const idx = +item.dataset.idx;
     const it = state.items[idx];
     if (!it) return;
-    if (btn.dataset.act === 'blockup') {
-      if (it.mid && cfg.blockUps.indexOf(String(it.mid)) < 0) cfg.blockUps.push(String(it.mid));
+    const mid = String(it.mid || '');
+    const act = btn.dataset.act;
+
+    if (act === 'blockup') {
+      if (!mid) { setStatus('该结果没有 UP 主信息，无法屏蔽'); return; }
+      // 屏蔽是不可逆性较强的操作，先确认，避免误点
+      const name = upName(it);
+      if (!confirm('屏蔽 UP 主？\n\n' + name + '（UID ' + mid + '）\n\n屏蔽后其视频将从搜索结果中剔除，可在设置里恢复。')) return;
+      if (upIndex(cfg.blockUps, mid) < 0) cfg.blockUps.push({ mid: mid, name: plain(it.sub || '').trim() });
+      // 追踪与屏蔽互斥
+      const ti = upIndex(cfg.trackUps, mid);
+      if (ti >= 0) cfg.trackUps.splice(ti, 1);
       saveCfg();
-      state.items = state.items.filter(x => !(x.mid && String(x.mid) === String(it.mid)));
+      state.items = state.items.filter(x => !(x.mid && String(x.mid) === mid));
       renderAll();
-      setStatus('已屏蔽 UP 主「' + escapeHtml(plain(it.sub)) + '」，可在设置里恢复');
-    } else if (btn.dataset.act === 'blockword') {
+      setStatus('已屏蔽 UP 主「' + escapeHtml(name) + '」（UID ' + escapeHtml(mid) + '），可在设置里恢复');
+    } else if (act === 'trackup' || act === 'untrackup') {
+      if (!mid) { setStatus('该结果没有 UP 主信息，无法追踪'); return; }
+      const i = upIndex(cfg.trackUps, mid);
+      if (act === 'trackup') {
+        if (i < 0) cfg.trackUps.push({ mid: mid, name: plain(it.sub || '').trim() });
+        setStatus('已追踪「' + escapeHtml(upName(it)) + '」，其视频在搜索结果中会加权靠前');
+      } else {
+        if (i >= 0) cfg.trackUps.splice(i, 1);
+        setStatus('已取消追踪「' + escapeHtml(upName(it)) + '」');
+      }
+      saveCfg();
+      renderAll();
+    } else if (act === 'blockword') {
       const w = (prompt('要把哪个词加入全局屏蔽？（命中该词的结果将被剔除）', plain(it.title).slice(0, 20)) || '').trim();
       if (w) {
         cfg.blockWords.push(w);
@@ -1145,33 +1211,19 @@
       chipsEl.appendChild(box);
     }
 
-    /* B 站热搜：默认关闭。
-     * 它要额外请求 s.search.bilibili.com/main/hotword，属于与搜索无关的网络请求，
-     * 所以默认不拉取；需要时在这里一键开启（设置里也有同一开关）。 */
-    const h2 = document.createElement('div');
-    h2.className = 'bcs-sechead';
-    const hotLabel = document.createElement('span');
-    hotLabel.textContent = 'B 站热搜';
-    const hotBtn = document.createElement('button');
-    hotBtn.className = 'bcs-toggle' + (cfg.showHot ? ' on' : '');
-    hotBtn.textContent = cfg.showHot ? '已开启' : '已关闭';
-    hotBtn.title = '默认关闭：开启后会向 B 站请求热搜榜';
-    hotBtn.addEventListener('click', () => {
-      cfg.showHot = !cfg.showHot;
-      saveCfg();
-      showHome();
-    });
-    h2.appendChild(hotLabel);
-    h2.appendChild(hotBtn);
-    chipsEl.appendChild(h2);
-
+    /* B 站热搜：默认关闭，且空态不再显示这一行（开关只放在设置里）。
+     * 它要额外请求 s.search.bilibili.com/main/hotword，属于与搜索无关的网络请求；
+     * 关闭时空态只显示本地历史，不发任何热搜请求。 */
     if (!cfg.showHot) {
-      // 关闭时不发任何热搜请求
       setStatus(history.length ? '' : '输入关键词开始搜索');
       renderFoot();
       return;
     }
 
+    const h2 = document.createElement('div');
+    h2.className = 'bcs-sechead';
+    h2.appendChild(document.createTextNode('B 站热搜'));
+    chipsEl.appendChild(h2);
     const box2 = document.createElement('div');
     box2.className = 'bcs-chips';
     box2.textContent = '加载中…';
@@ -1300,6 +1352,11 @@
       a.rel = 'noopener';
       const scoreTag = (state.order === 'relevance' && it._score != null)
         ? `<span class="bcs-score">相关度 ${it._score > 0 ? '高' : it._score >= -10 ? '中' : '低'}</span>` : '';
+      const tracked = !!it._tracked;
+      const trackTag = tracked ? '<span class="bcs-score bcs-track">★ 已追踪</span>' : '';
+      const trackBtn = tracked
+        ? '<button data-act="untrackup" title="取消追踪该 UP 主">取消追踪</button>'
+        : '<button data-act="trackup" title="追踪该 UP 主（相关度排序时加权靠前）">追踪UP</button>';
       a.innerHTML = `
         <div class="bcs-thumb">
           <img src="${escapeHtml(it.pic)}" loading="lazy" alt="">
@@ -1307,12 +1364,13 @@
         </div>
         <div class="bcs-info">
           <div class="bcs-title">${highlight(it.title)}</div>
-          <div class="bcs-sub">${escapeHtml(it.sub || '')}</div>
+          <div class="bcs-sub">${escapeHtml(it.sub || '')}${it.mid ? ` <span style="opacity:.55">UID ${escapeHtml(String(it.mid))}</span>` : ''}</div>
           <div class="bcs-meta">
             ${it.meta.filter(Boolean).map(m => `<span>${escapeHtml(m)}</span>`).join('')}
-            ${scoreTag}
+            ${scoreTag}${trackTag}
             <span class="bcs-acts">
-              <button data-act="blockup" title="屏蔽该 UP 主">屏蔽UP</button>
+              ${it.mid ? trackBtn : ''}
+              ${it.mid ? '<button data-act="blockup" title="屏蔽该 UP 主">屏蔽UP</button>' : ''}
               <button data-act="blockword" title="把词加入屏蔽">屏蔽词</button>
             </span>
           </div>
@@ -1370,7 +1428,7 @@
       });
     });
     const perm = footEl.querySelector('[data-act=perm]');
-    if (perm) perm.addEventListener('click', () => { renderSettings(); });
+    if (perm) perm.addEventListener('click', () => { noticesExpanded = true; renderSettings(); });
 
     const help = footEl.querySelector('[data-act=help]');
     if (help) help.addEventListener('click', () => {
@@ -1436,12 +1494,101 @@
     if (!state.kw && !listEl.children.length) showHome();
   }
 
+  // 说明区当前是否展开：首次（未点过「我已知晓」）默认展开
+  let noticesExpanded = !cfg.ackNotices;
+
+  /* --- 配置备份：导出 / 导入 ---
+   * 导出为一个 JSON 文件（脚本版本 + 设置 + 预设 + 屏蔽/追踪名单 + 搜索历史），
+   * 仅写入你选择保存的位置，不经过任何网络。 */
+  function stamp() {
+    const d = new Date(), p = x => String(x).padStart(2, '0');
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+  }
+
+  function exportConfig() {
+    try {
+      const data = {
+        _format: 'bilibili-search-replace-backup',
+        _version: 1,
+        _exportedAt: new Date().toISOString(),
+        cfg: cfg,
+        presets: presets,
+        history: history
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'bilibili-search-replace-备份-' + stamp() + '.json';
+      document.documentElement.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setStatus('已导出配置文件（含设置、预设、屏蔽/追踪名单、搜索历史）');
+    } catch (e) {
+      setStatus('导出失败：' + escapeHtml(e.message));
+    }
+  }
+
+  function importConfig(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      let data;
+      try {
+        data = JSON.parse(String(reader.result));
+      } catch (e) {
+        alert('导入失败：文件不是有效的 JSON');
+        return;
+      }
+      if (!data || typeof data !== 'object' || (!data.cfg && !data.presets)) {
+        alert('导入失败：这不像本脚本导出的备份文件');
+        return;
+      }
+      const nPresets = Array.isArray(data.presets) ? data.presets.length : 0;
+      const nBlock = data.cfg && Array.isArray(data.cfg.blockUps) ? data.cfg.blockUps.length : 0;
+      const nTrack = data.cfg && Array.isArray(data.cfg.trackUps) ? data.cfg.trackUps.length : 0;
+      if (!confirm(
+        '导入备份会覆盖当前的设置、筛选预设、屏蔽/追踪名单与搜索历史。\n\n' +
+        '该文件包含：\n' +
+        '· 筛选预设 ' + nPresets + ' 条\n' +
+        '· 屏蔽 UP ' + nBlock + ' 个 · 追踪 UP ' + nTrack + ' 个\n' +
+        (data._exportedAt ? '· 导出时间 ' + data._exportedAt.replace('T', ' ').slice(0, 19) + '\n' : '') +
+        '\n确定导入？')) return;
+
+      if (data.cfg && typeof data.cfg === 'object') {
+        cfg = Object.assign({}, DEFAULT_CFG, data.cfg);
+        cfg.blockUps = normalizeUpList(cfg.blockUps);
+        cfg.trackUps = normalizeUpList(cfg.trackUps);
+        cfg.blockWords = Array.isArray(cfg.blockWords) ? cfg.blockWords.map(String) : [];
+        saveCfg();
+      }
+      if (Array.isArray(data.presets)) {
+        presets = data.presets.filter(p => p && typeof p === 'object');
+        savePresets();
+      }
+      if (Array.isArray(data.history)) {
+        history = data.history.filter(x => typeof x === 'string').slice(0, 40);
+        try { GM_setValue(HIST_KEY, JSON.stringify(history)); } catch (e) { }
+      }
+      applyCfg();
+      noticesExpanded = !cfg.ackNotices;
+      state.type = cfg.defaultType;
+      renderSettings();
+      setStatus('导入完成：设置已恢复，筛选预设 ' + presets.length + ' 条');
+    };
+    reader.onerror = () => alert('导入失败：无法读取该文件');
+    reader.readAsText(file);
+  }
+
   function renderSettings() {
     listEl.innerHTML = ''; chipsEl.hidden = true; setStatus('');
 
-    // 权限说明区块（置顶，配合 Greasy Fork 页面上的 @description 提示）
-    // 注意：必须在 settingsEl.innerHTML 赋值之后再插入，否则会被覆盖
-    const permHtml = `
+    /* 说明区（AI 编写 + Cookie 权限）：
+     * 第一次打开设置时默认展开，并带「我已知晓」按钮；点过之后记住（cfg.ackNotices），
+     * 后续默认收起成一行，需要时再点开查看。 */
+    let permHtml;
+    if (noticesExpanded) {
+      permHtml = `
       <div class="bcs-perm bcs-perm-ai">
       <div class="bcs-perm-h">🤖 编写说明：AI 辅助生成</div>
       <p>本脚本的代码由 <b>AI 辅助生成</b>，并非作者逐字手写。作者已通读全部代码、
@@ -1468,7 +1615,18 @@
       <p class="bcs-perm-tip">自行核对：在源码里搜索 <code>GM_cookie.set(</code> —— 只有 1 处（第 321 行附近）；
       搜索 <code>GM_cookie.list(</code> / <code>.get(</code> / <code>.delete(</code> —— 0 处。
       除了这一处写入，其它出现的地方都只是注释和这段文字本身。</p>
+      </div>
+      <div class="bcs-perm-ack">
+        <button class="bcs-toggle bcs-ack" data-act="ack">我已知晓</button>
+        <span>点一下收起这两段说明，以后默认不再展开</span>
       </div>`;
+    } else {
+      permHtml = `
+      <div class="bcs-perm-ack">
+        <button class="bcs-toggle" data-act="expand">查看说明</button>
+        <span>AI 编写说明 · Cookie 权限说明（已确认过，默认收起）</span>
+      </div>`;
+    }
 
     const rows = [
       ['hijackTopSearch', '接管顶部搜索框', '回车与搜索按钮走自定义面板'],
@@ -1498,39 +1656,89 @@
         <select>${[['bilibili', 'B站原版'], ['google', 'Google'], ['bing', 'Bing'], ['none', '不跳转']].map(([v, l]) => `<option value="${v}" ${cfg.fallback === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="bcs-set-row" data-key="blockWords"><span>全局屏蔽词<em>命中任一词的结果直接剔除，逗号或回车分隔</em></span>
         <input type="text" style="width:220px" value="${escapeHtml(cfg.blockWords.join('，'))}"></div>
-      <div class="bcs-set-row" data-key="blockUps"><span>已屏蔽的 UP 主<em>点 ✕ 恢复</em></span>
-        <span>${cfg.blockUps.length ? cfg.blockUps.map(m => `<span class="bcs-tag"><b>${escapeHtml(m)}</b><i data-mid="${escapeHtml(m)}">✕</i></span>`).join('') : '<span style="color:var(--bcs-sub);font-size:12px">无</span>'}</span></div>
+      <div class="bcs-set-row" data-key="blockUps"><span>已屏蔽的 UP 主<em>显示昵称 + UID，点 ✕ 恢复；在搜索结果上悬停可屏蔽</em></span>
+        <span class="bcs-preset-list">${cfg.blockUps.length ? cfg.blockUps.map(u => `<span class="bcs-tag"><b>${escapeHtml(u.name || '未知昵称')}</b><em style="font-style:normal">UID ${escapeHtml(u.mid)}</em><i data-upact="unblock" data-mid="${escapeHtml(u.mid)}" title="恢复">✕</i></span>`).join('') : '<span style="color:var(--bcs-sub);font-size:12px">无</span>'}</span></div>
+      <div class="bcs-set-row" data-key="trackUps"><span>追踪的 UP 主<em>不必关注也能加权：使用「相关度」排序时，这些 UP 的视频会额外加分、排得更靠前</em></span>
+        <span class="bcs-preset-list">${cfg.trackUps.length ? cfg.trackUps.map(u => `<span class="bcs-tag"><b>${escapeHtml(u.name || '未知昵称')}</b><em style="font-style:normal">UID ${escapeHtml(u.mid)}</em><i data-upact="untrack" data-mid="${escapeHtml(u.mid)}" title="取消追踪">✕</i></span>`).join('') : '<span style="color:var(--bcs-sub);font-size:12px">无，可在搜索结果上点「追踪UP」添加</span>'}</span></div>
+      <div class="bcs-set-row" data-key="trackBoost"><span>追踪加权力度<em>给追踪 UP 的视频额外加多少分（0 = 只加标记不加权）</em></span>
+        <select>${[0, 5, 10, 15, 25, 40].map(n => `<option value="${n}" ${(+cfg.trackBoost || 0) === n ? 'selected' : ''}>${n === 0 ? '不加权' : '+' + n + ' 分'}</option>`).join('')}</select></div>
+      <div class="bcs-set-row" data-key="backup"><span>配置备份<em>导出为 JSON 文件保存到本地；重装脚本或换浏览器时可导入恢复（含设置、预设、屏蔽/追踪名单、历史）</em></span>
+        <span>
+          <button class="bcs-toggle" data-act="export">导出到文件</button>
+          <button class="bcs-toggle" data-act="import">从文件导入</button>
+          <input type="file" accept="application/json,.json" data-act="importfile" hidden>
+        </span></div>
       <div class="bcs-set-row"><span>筛选预设<em>★ 设为该类目默认 · ✎ 重命名 · ✕ 删除；默认预设会在每次打开面板时自动套用</em></span>
         <span class="bcs-preset-list">${presets.length ? presets.map(p => `<span class="bcs-tag"><i data-pact="def" data-pid="${escapeHtml(p.id)}" title="设为默认">${p.def ? '★' : '☆'}</i><b>${escapeHtml(p.name)}</b><em style="font-style:normal">${typeLabel(p.type)}</em><i data-pact="ren" data-pid="${escapeHtml(p.id)}">✎</i><i data-pact="del" data-pid="${escapeHtml(p.id)}">✕</i></span>`).join('') : '<span style="color:var(--bcs-sub);font-size:12px">还没有预设，去筛选栏点「＋ 保存当前」</span>'}</span></div>
-      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.1.4 · AI 辅助编写 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
+      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.2.0 · AI 辅助编写 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
         <button class="bcs-toggle" data-act="reset">恢复默认</button></div>`;
 
     settingsEl.querySelectorAll('.bcs-set-row[data-key]').forEach(row => {
       const k = row.dataset.key;
+      // backup 行里的控件是导入用的 file input，不参与通用配置绑定
+      if (k === 'backup') return;
       const ctl = row.querySelector('input,select');
       if (!ctl || !ctl.addEventListener) return;
       ctl.addEventListener('change', () => {
         if (ctl.type === 'checkbox') cfg[k] = ctl.checked;
-        else if (k === 'pageSize') cfg[k] = Number(ctl.value);
+        else if (k === 'pageSize' || k === 'trackBoost') cfg[k] = Number(ctl.value);
         else if (k === 'blockWords') cfg[k] = ctl.value.split(/[,，\n]/).map(s => s.trim()).filter(Boolean);
         else cfg[k] = ctl.value;
         saveCfg();
         applyCfg();
         if (k === 'strict') strictBtn.classList.toggle('on', cfg.strict);
         // 这些项会影响结果集，关掉设置面板时自动重搜
-        if (['strict', 'blockWords', 'pageSize', 'defaultOrder'].indexOf(k) >= 0) pendingRerun = true;
+        if (['strict', 'blockWords', 'pageSize', 'defaultOrder', 'trackBoost'].indexOf(k) >= 0) pendingRerun = true;
         // 热搜开关影响空态显示：这里只打标记，等关掉设置面板再重画，
         // 否则历史/热搜 chips 会和设置面板同时显示，画面错乱
         if (k === 'showHot') pendingIdleRefresh = true;
       });
     });
-    settingsEl.querySelectorAll('[data-mid]').forEach(i => {
+
+    // 屏蔽 / 追踪名单的 ✕
+    settingsEl.querySelectorAll('[data-upact]').forEach(i => {
       i.addEventListener('click', () => {
-        cfg.blockUps = cfg.blockUps.filter(m => m !== i.dataset.mid);
+        const mid = String(i.dataset.mid || '');
+        if (i.dataset.upact === 'unblock') {
+          const idx = upIndex(cfg.blockUps, mid);
+          if (idx >= 0) cfg.blockUps.splice(idx, 1);
+        } else if (i.dataset.upact === 'untrack') {
+          const idx = upIndex(cfg.trackUps, mid);
+          if (idx >= 0) cfg.trackUps.splice(idx, 1);
+        }
         saveCfg();
+        pendingRerun = true;
         renderSettings();
       });
     });
+
+    // 说明区：我已知晓 / 查看说明
+    const ackBtn = settingsEl.querySelector('[data-act=ack]');
+    if (ackBtn) ackBtn.addEventListener('click', () => {
+      cfg.ackNotices = true;
+      saveCfg();
+      noticesExpanded = false;
+      renderSettings();
+    });
+    const expBtn = settingsEl.querySelector('[data-act=expand]');
+    if (expBtn) expBtn.addEventListener('click', () => {
+      noticesExpanded = true;
+      renderSettings();
+    });
+
+    // 配置备份：导出 / 导入
+    const exp2 = settingsEl.querySelector('[data-act=export]');
+    if (exp2) exp2.addEventListener('click', exportConfig);
+    const imp = settingsEl.querySelector('[data-act=import]');
+    const impFile = settingsEl.querySelector('[data-act=importfile]');
+    if (imp && impFile) {
+      imp.addEventListener('click', () => impFile.click());
+      impFile.addEventListener('change', () => {
+        const f = impFile.files && impFile.files[0];
+        if (f) importConfig(f);
+        impFile.value = '';
+      });
+    }
     settingsEl.querySelectorAll('[data-pact]').forEach(el => {
       el.addEventListener('click', () => {
         const p = presets.filter(x => x.id === el.dataset.pid)[0];
@@ -1723,7 +1931,13 @@
 
     GM_registerMenuCommand('⚙️ B站自定义搜索 · 设置', () => {
       openPanel('');
+      noticesExpanded = !cfg.ackNotices;
       renderSettings();
+    });
+    GM_registerMenuCommand('💾 导出配置备份（JSON）', () => {
+      openPanel('');
+      renderSettings();
+      exportConfig();
     });
   }
 
