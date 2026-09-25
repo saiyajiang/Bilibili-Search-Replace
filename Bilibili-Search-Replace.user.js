@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         B站搜索替代器（自定义搜索面板）
 // @namespace    https://github.com/saiyajiang
-// @version      2.2.0
-// @description  【编写说明】本脚本代码由 AI 辅助生成，作者已逐行审阅并在真实环境验证后发布；发现问题请在 GitHub 提 issue。｜【权限说明】本脚本会申请 Cookie 权限——仅用于在 B 站返回风控错误(-412/-352)时写入一个 buvid3 设备标识，不会读取、不会上传你的任何 Cookie（脚本无任何第三方服务器，全部请求直连 bilibili.com）。不需要可删除脚本第 25 行 @grant GM_cookie，其余功能不受影响。｜功能：接管 B 站顶部搜索：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，键盘流
-// @description:en  [Authorship] This script's code was generated with AI assistance; the author reviewed it line by line and verified it in a real environment before publishing. Please report issues on GitHub. | [Permission notice] This script requests the Cookie permission for ONE purpose only: writing a buvid3 device-id cookie when Bilibili returns risk-control errors (-412/-352). It never reads or uploads any of your cookies — there is no third-party server, all requests go directly to bilibili.com. You may delete line 25 (@grant GM_cookie) to drop the permission; everything else keeps working. | Features: replaces Bilibili's native search: official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, full keyboard flow.
+// @version      2.3.0
+// @description  【编写说明】本脚本代码由 AI 辅助生成，作者已逐行审阅并在真实环境验证后发布；发现问题请在 GitHub 提 issue。｜【权限说明】本脚本会申请 Cookie 权限——仅用于在 B 站返回风控错误(-412/-352)时写入一个 buvid3 设备标识，不会读取、不会上传你的任何 Cookie（脚本无任何第三方服务器，全部请求直连 bilibili.com）。不需要可删除脚本第 25 行 @grant GM_cookie，其余功能不受影响。｜功能：接管 B 站顶部搜索：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，UP主追踪，配置备份，常驻入口按钮与自定义快捷键
+// @description:en  [Authorship] This script's code was generated with AI assistance; the author reviewed it line by line and verified it in a real environment before publishing. Please report issues on GitHub. | [Permission notice] This script requests the Cookie permission for ONE purpose only: writing a buvid3 device-id cookie when Bilibili returns risk-control errors (-412/-352). It never reads or uploads any of your cookies — there is no third-party server, all requests go directly to bilibili.com. You may delete line 25 (@grant GM_cookie) to drop the permission; everything else keeps working. | Features: replaces Bilibili's native search: official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, UP tracking, config backup, persistent entry button and custom hotkey.
 // @author       saiyajiang
 // @license      MIT
 // @homepageURL  https://github.com/saiyajiang/Bilibili-Search-Replace
@@ -50,7 +50,9 @@
     suggest: true,            // 搜索建议
     showHot: false,           // 空态显示 B 站热搜（默认关闭：需额外请求热搜接口）
     openInNewTab: false,      // 结果新标签打开
-    showEntry: false,         // 右下角常驻入口
+    showEntry: true,          // 右下角常驻入口（默认显示：快捷键可能与其它扩展冲突，按钮是更稳的入口）
+    hotkeyCombo: 'Alt+K',     // 自定义快捷键，格式如 Alt+K / Ctrl+Shift+K / Ctrl+,
+    entrySide: 'right',       // 入口按钮位置：right / left
     defaultType: 'video',
     defaultOrder: 'relevance',// relevance = 相关度优先（本地重排）
     pageSize: 30,
@@ -97,6 +99,77 @@
     }
   } catch (e) { }
   function saveCfg() { try { GM_setValue(CFG_KEY, JSON.stringify(cfg)); } catch (e) { } }
+
+  /* =======================================================================
+   * 1b. 自定义快捷键
+   * 默认 Alt+K，但 Alt+K 常被浏览器或其它扩展占用，所以允许自定义。
+   * 形如：Alt+K / Ctrl+Shift+K / Ctrl+, / Ctrl+Space
+   * ===================================================================== */
+  const MOD_KEYS = { ctrl: 'ctrlKey', control: 'ctrlKey', shift: 'shiftKey', alt: 'altKey', option: 'altKey', meta: 'metaKey', cmd: 'metaKey', command: 'metaKey', win: 'metaKey' };
+
+  // 主按键 → KeyboardEvent.code（用 code 而非 key，避免 macOS Option+K 之类变成特殊字符）
+  function keyToCode(k) {
+    if (!k) return '';
+    const s = String(k).trim();
+    if (/^F([1-9]|1[0-2])$/i.test(s)) return s.toUpperCase();
+    if (/^[a-z]$/i.test(s)) return 'Key' + s.toUpperCase();
+    if (/^[0-9]$/.test(s)) return 'Digit' + s;
+    const map = {
+      space: 'Space', ',': 'Comma', '.': 'Period', '/': 'Slash', ';': 'Semicolon', "'": 'Quote',
+      '[': 'BracketLeft', ']': 'BracketRight', '\\': 'Backslash', '-': 'Minus', '=': 'Equal',
+      '`': 'Backquote', 'enter': 'Enter', 'esc': 'Escape', 'escape': 'Escape', 'tab': 'Tab',
+      'up': 'ArrowUp', 'down': 'ArrowDown', 'left': 'ArrowLeft', 'right': 'ArrowRight',
+      'home': 'Home', 'end': 'End', 'pageup': 'PageUp', 'pagedown': 'PageDown',
+      'backspace': 'Backspace', 'delete': 'Delete', 'insert': 'Insert'
+    };
+    return map[s.toLowerCase()] || '';
+  }
+
+  // "Alt+K" → {alt:true, ctrl:false, shift:false, meta:false, code:'KeyK', label:'Alt+K'}
+  function parseCombo(str) {
+    const parts = String(str || '').split('+').map(x => x.trim()).filter(Boolean);
+    const combo = { ctrl: false, shift: false, alt: false, meta: false, code: '', label: '' };
+    let main = '';
+    parts.forEach(p => {
+      const slot = MOD_KEYS[p.toLowerCase()];
+      if (slot) {
+        if (slot === 'ctrlKey') combo.ctrl = true;
+        else if (slot === 'shiftKey') combo.shift = true;
+        else if (slot === 'altKey') combo.alt = true;
+        else if (slot === 'metaKey') combo.meta = true;
+      } else if (!main) {
+        main = p;
+      }
+    });
+    if (!main) return null;
+    combo.code = keyToCode(main);
+    if (!combo.code) return null;
+    const mods = [];
+    // 显示顺序固定，和 B 站/常见软件的写法一致
+    if (combo.ctrl) mods.push('Ctrl');
+    if (combo.alt) mods.push('Alt');
+    if (combo.shift) mods.push('Shift');
+    if (combo.meta) mods.push('Meta');
+    mods.push(main.length === 1 ? main.toUpperCase() : main);
+    combo.label = mods.join('+');
+    return combo;
+  }
+
+  function matchCombo(e, combo) {
+    if (!combo) return false;
+    // 修饰键必须完全一致（多按或少按都不触发），避免误触
+    if (!!e.ctrlKey !== combo.ctrl) return false;
+    if (!!e.shiftKey !== combo.shift) return false;
+    if (!!e.altKey !== combo.alt) return false;
+    if (!!e.metaKey !== combo.meta) return false;
+    if (e.code && combo.code) return e.code === combo.code;
+    return String(e.key || '').toLowerCase() === combo.code.replace(/^Key|^Digit/, '').toLowerCase();
+  }
+
+  // 浏览器保留的组合，拦了会挡住正常操作，给个提示但仍允许设置
+  const RESERVED = ['Ctrl+T', 'Ctrl+W', 'Ctrl+N', 'Ctrl+Shift+N', 'Ctrl+Q', 'Ctrl+Shift+Q',
+    'Meta+W', 'Meta+T', 'Meta+N', 'Meta+Q', 'F5', 'F11', 'F12'];
+  function isReserved(combo) { return !!combo && RESERVED.indexOf(combo.label) >= 0; }
 
   const HIST_KEY = 'bcs_history_v2';
   let history = [];
@@ -785,6 +858,11 @@
     .bcs-perm-ai{border-style:dashed;margin-bottom:10px}
     .bcs-perm a{color:var(--bcs-accent);text-decoration:none}
     .bcs-perm a:hover{text-decoration:underline}
+    .bcs-hotkey{display:inline-flex;align-items:center;gap:6px}
+    .bcs-hotkey-input{width:150px;text-align:center;cursor:pointer;font-family:ui-monospace,Menlo,Consolas,monospace}
+    .bcs-hotkey-input:focus{border-color:var(--bcs-accent);color:var(--bcs-accent)}
+    .bcs-hotkey-warn{margin:0 0 8px;padding:6px 10px;border-radius:6px;font-size:12px;
+      background:rgba(240,195,109,.16);color:var(--bcs-fg)}
     .bcs-perm-ack{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:12px;color:var(--bcs-sub)}
     .bcs-perm-ack .bcs-toggle{white-space:nowrap}
     .bcs-perm-ack .bcs-ack{background:var(--bcs-accent);border-color:var(--bcs-accent);color:#fff}
@@ -794,8 +872,19 @@
       font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
     .bcs-help{font-size:12px;color:var(--bcs-sub);line-height:1.9;padding:4px 2px}
     .bcs-help code{background:var(--bcs-hover);padding:1px 5px;border-radius:4px;font-family:ui-monospace,Menlo,Consolas,monospace}
-    .bcs-entry{position:fixed;right:18px;bottom:18px;z-index:2147482999;width:46px;height:46px;border-radius:50%;
-      border:0;background:#FB7299;color:#fff;font-size:20px;cursor:pointer;box-shadow:0 6px 18px rgba(251,114,153,.45)}
+    /* 右下角入口：尽量贴近 B 站自身的浮动按钮观感（粉色主色 + 圆角矩形 + 内嵌线性图标），
+     * 而不是一个显眼的圆形 emoji 按钮。位置避开 B 站自带的右侧工具栏。 */
+    .bcs-entry{position:fixed;z-index:2147482998;display:flex;align-items:center;gap:6px;
+      height:36px;padding:0 12px 0 10px;border:0;border-radius:8px;
+      background:#FB7299;color:#fff;font-size:13px;font-family:inherit;line-height:1;cursor:pointer;
+      box-shadow:0 2px 8px rgba(0,0,0,.18);transition:background .15s,box-shadow .15s,transform .15s}
+    .bcs-entry:hover{background:#fc8bab;box-shadow:0 4px 12px rgba(251,114,153,.45)}
+    .bcs-entry:active{transform:translateY(1px)}
+    .bcs-entry svg{width:16px;height:16px;display:block;flex:0 0 16px}
+    .bcs-entry.bcs-entry-right{right:20px;bottom:96px}
+    .bcs-entry.bcs-entry-left{left:20px;bottom:96px}
+    .bcs-entry.bcs-entry-icononly{width:36px;padding:0;justify-content:center}
+    .bcs-entry.bcs-entry-icononly span{display:none}
     body.bcs-lock{overflow:hidden!important}
   `);
 
@@ -824,7 +913,7 @@
       <div class="bcs-mask" data-close="1"></div>
       <div class="bcs-panel">
         <div class="bcs-head">
-          <input class="bcs-input" type="text" placeholder='搜索：-排除词  "精确短语"  up:作者名   （Alt+K 唤出，Esc 关闭）'>
+          <input class="bcs-input" type="text" placeholder='搜索：-排除词  "精确短语"  up:作者名   （Esc 关闭）'>
           <button class="bcs-icon" id="bcs-filter" title="筛选">⚗</button>
           <button class="bcs-icon" id="bcs-gear" title="设置">⚙</button>
         </div>
@@ -1479,6 +1568,8 @@
   /* --- 设置面板 --- */
   let pendingRerun = false;
   let pendingIdleRefresh = false;
+  // 正在录制快捷键时，全局快捷键监听要让路，否则按下 Ctrl+T 之类会直接被拦掉
+  let capturingHotkey = false;
   function toggleSettings() {
     if (!settingsEl.hidden) {
       settingsEl.hidden = true;
@@ -1631,19 +1722,35 @@
     const rows = [
       ['hijackTopSearch', '接管顶部搜索框', '回车与搜索按钮走自定义面板'],
       ['killDropdown', '屏蔽搜索框下拉推荐', '隐藏历史记录、猜你想搜、大家都在搜'],
-      ['hotkey', 'Alt + K 唤出面板', ''],
+      ['hotkey', '启用快捷键唤出面板', '快捷键可能与浏览器或其它扩展冲突，冲突时改下面那个组合，或用常驻入口按钮'],
       ['suggest', '显示搜索建议', '输入时展示官方 suggest 词'],
       ['showHot', '空态显示 B 站热搜', '默认关闭：开启后会额外请求热搜榜接口'],
       ['openInNewTab', '结果在新标签打开', ''],
       ['saveHistory', '保存本地搜索历史', '原生历史被屏蔽后，用这个替代'],
       ['strict', '严格过滤不相关结果', '标题未命中任何关键词的结果直接剔除'],
-      ['showEntry', '右下角常驻入口按钮', '接管失败时会自动兜底出现']
+      ['showEntry', '常驻入口按钮', '右下角（或左下角）常驻一个搜索按钮，接管失败时会自动兜底出现']
     ];
+    const comboNow = parseCombo(cfg.hotkeyCombo);
+    const comboWarnHtml =
+      '<div class="bcs-hotkey-warn"' + (isReserved(comboNow) ? '' : ' hidden') + '>' +
+      '⚠️ 该组合通常是浏览器保留键（新标签页 / 关闭窗口等），可能被浏览器拦截而无法生效</div>';
     settingsEl.innerHTML = permHtml + rows.map(([k, label, desc]) => `
       <div class="bcs-set-row" data-key="${k}">
         <span>${label}${desc ? `<em>${desc}</em>` : ''}</span>
         <input type="checkbox" ${cfg[k] ? 'checked' : ''}>
       </div>`).join('') + `
+      <div class="bcs-set-row" data-key="hotkeyCombo">
+        <span>自定义快捷键<em>点输入框后<b>直接按</b>你想要的组合键即可自动填入；仅修饰键不够，必须带一个主键</em></span>
+        <span class="bcs-hotkey">
+          <input type="text" class="bcs-hotkey-input" readonly placeholder="点这里后按键…"
+                 value="${escapeHtml(comboNow ? comboNow.label : (cfg.hotkeyCombo || ''))}">
+          <button class="bcs-toggle" data-act="hotkey-default">恢复 Alt+K</button>
+          <button class="bcs-toggle" data-act="hotkey-clear">清除</button>
+        </span>
+      </div>
+      ${comboWarnHtml}
+      <div class="bcs-set-row" data-key="entrySide"><span>入口按钮位置</span>
+        <select>${[['right', '右下角'], ['left', '左下角']].map(([v, l]) => `<option value="${v}" ${cfg.entrySide === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>` + `
       <div class="bcs-set-row" data-key="defaultType"><span>默认搜索类型</span>
         <select>${TYPES.map(t => `<option value="${t.key}" ${cfg.defaultType === t.key ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
       <div class="bcs-set-row" data-key="defaultOrder"><span>默认排序</span>
@@ -1670,13 +1777,14 @@
         </span></div>
       <div class="bcs-set-row"><span>筛选预设<em>★ 设为该类目默认 · ✎ 重命名 · ✕ 删除；默认预设会在每次打开面板时自动套用</em></span>
         <span class="bcs-preset-list">${presets.length ? presets.map(p => `<span class="bcs-tag"><i data-pact="def" data-pid="${escapeHtml(p.id)}" title="设为默认">${p.def ? '★' : '☆'}</i><b>${escapeHtml(p.name)}</b><em style="font-style:normal">${typeLabel(p.type)}</em><i data-pact="ren" data-pid="${escapeHtml(p.id)}">✎</i><i data-pact="del" data-pid="${escapeHtml(p.id)}">✕</i></span>`).join('') : '<span style="color:var(--bcs-sub);font-size:12px">还没有预设，去筛选栏点「＋ 保存当前」</span>'}</span></div>
-      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.2.0 · AI 辅助编写 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
+      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.3.0 · AI 辅助编写 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
         <button class="bcs-toggle" data-act="reset">恢复默认</button></div>`;
 
     settingsEl.querySelectorAll('.bcs-set-row[data-key]').forEach(row => {
       const k = row.dataset.key;
       // backup 行里的控件是导入用的 file input，不参与通用配置绑定
-      if (k === 'backup') return;
+      // hotkeyCombo 是「按键录制」输入框，有自己的处理逻辑
+      if (k === 'backup' || k === 'hotkeyCombo') return;
       const ctl = row.querySelector('input,select');
       if (!ctl || !ctl.addEventListener) return;
       ctl.addEventListener('change', () => {
@@ -1711,6 +1819,53 @@
         renderSettings();
       });
     });
+
+    // 自定义快捷键：点输入框后直接按键录制
+    const hkInput = settingsEl.querySelector('.bcs-hotkey-input');
+    const hkWarn = settingsEl.querySelector('.bcs-hotkey-warn');
+    const applyCombo = v => {
+      cfg.hotkeyCombo = v || '';
+      saveCfg();
+      const c = parseCombo(cfg.hotkeyCombo);
+      if (hkInput) hkInput.value = c ? c.label : '';
+      if (hkWarn) hkWarn.hidden = !isReserved(c);
+      if (entryBtn) renderEntry();
+    };
+    if (hkInput) {
+      hkInput.addEventListener('focus', () => { capturingHotkey = true; hkInput.value = '请按下组合键…'; });
+      hkInput.addEventListener('blur', () => {
+        capturingHotkey = false;
+        const c = parseCombo(cfg.hotkeyCombo);
+        hkInput.value = c ? c.label : '';
+      });
+      hkInput.addEventListener('keydown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'Escape') { hkInput.blur(); return; }
+        if (e.key === 'Backspace' || e.key === 'Delete') { applyCombo(''); hkInput.blur(); return; }
+        // 只按修饰键不算，必须有主键
+        if (['Control', 'Shift', 'Alt', 'Meta', 'CapsLock', 'Tab'].indexOf(e.key) >= 0) return;
+        const parts = [];
+        if (e.ctrlKey) parts.push('Ctrl');
+        if (e.altKey) parts.push('Alt');
+        if (e.shiftKey) parts.push('Shift');
+        if (e.metaKey) parts.push('Meta');
+        let main = '';
+        const code = e.code || '';
+        if (/^Key[A-Z]$/.test(code)) main = code.slice(3);
+        else if (/^Digit[0-9]$/.test(code)) main = code.slice(5);
+        else if (/^F([1-9]|1[0-2])$/.test(code)) main = code;
+        else main = (e.key || '').length === 1 ? e.key.toUpperCase() : (e.key || '');
+        if (!main) return;
+        parts.push(main);
+        applyCombo(parts.join('+'));
+        hkInput.blur();
+      });
+    }
+    const hkDef = settingsEl.querySelector('[data-act=hotkey-default]');
+    if (hkDef) hkDef.addEventListener('click', () => applyCombo('Alt+K'));
+    const hkClr = settingsEl.querySelector('[data-act=hotkey-clear]');
+    if (hkClr) hkClr.addEventListener('click', () => applyCombo(''));
 
     // 说明区：我已知晓 / 查看说明
     const ackBtn = settingsEl.querySelector('[data-act=ack]');
@@ -1780,6 +1935,11 @@
   /* =======================================================================
    * 10. 开关与入口
    * ===================================================================== */
+  /* kw 的语义：
+   *   传入字符串  → 用该词覆盖输入框并立即搜索（从原生搜索框接管时走这条路）
+   *   不传 / null → 保留输入框里已有的内容，只重新聚焦
+   * 之前不传时也写成 openPanel('')，会把用户已经输入的词清空，
+   * 表现就是「输入内容后点别处、再点回来，内容没了」。 */
   function openPanel(kw) {
     const isOpen = !root.hidden;
     root.hidden = false;
@@ -1789,7 +1949,7 @@
     const dp = defaultPreset(state.type);
     if (dp) applyPreset(dp, false);
     else syncPresetSelect();
-    if (kw !== undefined && kw !== null) input.value = kw;
+    if (typeof kw === 'string') input.value = kw;
     input.focus();
     input.select();
     if (kw) {
@@ -1814,13 +1974,22 @@
     if (need && !entryBtn) {
       entryBtn = document.createElement('button');
       entryBtn.className = 'bcs-entry';
-      entryBtn.title = 'B站自定义搜索（Alt+K）';
-      entryBtn.textContent = '🔍';
-      entryBtn.addEventListener('click', () => openPanel(''));
+      entryBtn.type = 'button';
+      // 内嵌 SVG 线性搜索图标（比 emoji 更贴近 B 站的图标风格，也不会因字体缺字显示成方块）
+      entryBtn.innerHTML =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
+        'stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle>' +
+        '<line x1="15.5" y1="15.5" x2="21" y2="21"></line></svg><span>搜索</span>';
+      entryBtn.addEventListener('click', () => openPanel());
       document.documentElement.appendChild(entryBtn);
-    } else if (!need && entryBtn) {
-      entryBtn.remove(); entryBtn = null;
     }
+    if (entryBtn) {
+      const side = cfg.entrySide === 'left' ? 'left' : 'right';
+      // 兜底出现（用户没主动开启）时收成纯图标，尽量不挡住页面
+      entryBtn.className = 'bcs-entry bcs-entry-' + side + (cfg.showEntry ? '' : ' bcs-entry-icononly');
+      entryBtn.title = 'B站自定义搜索' + (cfg.hotkey ? '（' + (cfg.hotkeyCombo || 'Alt+K') + '）' : '');
+    }
+    if (!need && entryBtn) { entryBtn.remove(); entryBtn = null; }
   }
 
   /* =======================================================================
@@ -1912,9 +2081,15 @@
     killDropdownStatic();
 
     document.addEventListener('keydown', e => {
-      if (cfg.hotkey && e.altKey && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault();
-        if (root.hidden) openPanel(''); else closePanel();
+      if (cfg.hotkey && !capturingHotkey) {
+        const combo = parseCombo(cfg.hotkeyCombo);
+        // 面板内输入框聚焦时不抢快捷键，否则会干扰正常打字
+        const typing = document.activeElement === input;
+        if (combo && !typing && matchCombo(e, combo)) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (root.hidden) openPanel(); else closePanel();
+        }
       }
       if (!root.hidden && e.key === 'Escape') closePanel();
     }, true);
@@ -1930,12 +2105,12 @@
     setTimeout(() => renderEntry(), 8000);
 
     GM_registerMenuCommand('⚙️ B站自定义搜索 · 设置', () => {
-      openPanel('');
+      openPanel();
       noticesExpanded = !cfg.ackNotices;
       renderSettings();
     });
     GM_registerMenuCommand('💾 导出配置备份（JSON）', () => {
-      openPanel('');
+      openPanel();
       renderSettings();
       exportConfig();
     });
