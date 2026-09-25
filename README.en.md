@@ -76,8 +76,17 @@ This script splits the job in two: the official API is only a **data source**, a
 | **Config backup** | Export everything to a JSON file (settings, presets, block/track lists, history) and import it back; also available from the Tampermonkey menu |
 | **History** | Native dropdown (history / trending / suggestions) is suppressed; the script keeps its own local history |
 | **Hot search toggle** | Bilibili trending search is **off by default** (it needs an extra request); enable it from the empty-state panel or in settings |
-| **Keyboard** | `Alt+K` open · `↑↓` select · `Enter` open · `Ctrl+Enter` / middle-click new tab · `Esc` close |
+| **Opening it** | A **persistent button** bottom-right (switchable to bottom-left), shown by default; hotkey defaults to `Alt+K` and is **fully customizable** (click the field in settings, then just press the combo) |
+| **Keyboard** | `↑↓` select · `Enter` open · `Ctrl+Enter` / middle-click new tab · `Esc` close |
 | **Theming** | Auto / light / dark |
+
+### Opening the panel
+
+- **Persistent button**: shown bottom-right by default (can move to bottom-left in settings), styled to match Bilibili's own floating buttons (pink, rounded, line icon). When a hotkey collides with something else, this is the reliable way in.
+- **Customizable hotkey**: defaults to `Alt+K`, which browsers and other extensions often grab. In settings, click the "Custom hotkey" field and **just press** the combo you want (`Ctrl+Shift+K`, `Ctrl+,`, ...). `Backspace` clears it, `Esc` cancels recording.
+- Matching uses `KeyboardEvent.code` (physical key), so things like `Option+K` on macOS still work instead of turning into a stray character. Modifiers must match exactly — an extra or missing modifier won't trigger it.
+- Browser-reserved combos (e.g. `Ctrl+T`, `Ctrl+W`) show a warning, since the browser may swallow them.
+- The hotkey is ignored while the search input is focused, so it never interferes with typing.
 
 ### Tracking UPs (weight without following)
 
@@ -127,6 +136,7 @@ Tested with Tampermonkey on Chromium and Firefox. The top search box is bound in
 
 ## Changelog
 
+- **2.3.0** — Persistent entry button **shown by default** and restyled to match Bilibili (pink, rounded, line icon; can move to bottom-left); **customizable hotkey** (defaults to Alt+K, click the field and press your combo, with a warning for browser-reserved keys); fixed typed text being wiped when re-opening the panel.
 - **2.2.0** — Hot search entry removed from the idle panel (toggle now lives only in settings); blocking an UP asks for confirmation; settings notices get an "I understand" button (expanded first time, collapsed once acknowledged); block/track lists show nickname + UID; **config export/import**; **Track UP** feature.
 - **2.1.4** — Bilibili hot search is now **off by default** and behind a toggle: no hotword request is made while it's off. Turn it on via "Show hot search" in settings.
 - **2.1.3** — Disclosed that the code is AI-assisted (leading notice in `@description`, in-script "🤖 Authorship" section, and README note).
