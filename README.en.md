@@ -63,6 +63,7 @@ This script splits the job in two: the official API is only a **data source**, a
 - **Relevance ranking** (default order): re-scores by how well the title / UP matches, instead of trusting the server order.
 - When filtering removes too much, the script auto-fetches more pages (up to 6) to **widen the sample** — but it never **lowers the bar**. If nothing matches, the list is genuinely empty.
 - An empty result explains which keyword combination was not satisfied and offers a one-click "turn off strict filtering and search again".
+- **Results are de-duplicated**: the default ordering repeats items across pages, so results are de-duplicated by bvid across every fetched page.
 
 ## Features
 
@@ -137,6 +138,7 @@ Tested with Tampermonkey on Chromium and Firefox. The top search box is bound in
 
 ## Changelog
 
+- **2.4.1** — Fixed **duplicate results**: Bilibili's default ordering repeats the same video across pages, and strict filtering fetches several pages per search, so the same item showed up multiple times. Results are now de-duplicated across pages by business id (bvid / mid / roomid), with a "N duplicates removed" counter.
 - **2.4.0** — **Strict filtering is now AND**: the title must match every keyword, missing one drops it (previously matching any one keyword was enough, so an FGO video that only mentioned 河上彦斋 survived a search for 河上彦斋 浪人崛起). UP-name-only matches no longer count. If nothing matches, the list is empty with a one-click way to relax it.
 - **2.3.0** — Persistent entry button **shown by default** and restyled to match Bilibili (pink, rounded, line icon; can move to bottom-left); **customizable hotkey** (defaults to Alt+K, click the field and press your combo, with a warning for browser-reserved keys); fixed typed text being wiped when re-opening the panel.
 - **2.2.0** — Hot search entry removed from the idle panel (toggle now lives only in settings); blocking an UP asks for confirmation; settings notices get an "I understand" button (expanded first time, collapsed once acknowledged); block/track lists show nickname + UID; **config export/import**; **Track UP** feature.
