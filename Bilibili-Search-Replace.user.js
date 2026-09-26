@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         B站搜索替代器（自定义搜索面板）
 // @namespace    https://github.com/saiyajiang
-// @version      2.4.1
-// @description  【编写说明】本脚本代码由 AI 辅助生成，作者已逐行审阅并在真实环境验证后发布；发现问题请在 GitHub 提 issue。｜【权限说明】本脚本会申请 Cookie 权限——仅用于在 B 站返回风控错误(-412/-352)时写入一个 buvid3 设备标识，不会读取、不会上传你的任何 Cookie（脚本无任何第三方服务器，全部请求直连 bilibili.com）。不需要可删除脚本第 25 行 @grant GM_cookie，其余功能不受影响。｜功能：接管 B 站顶部搜索：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，UP主追踪，配置备份，常驻入口按钮与自定义快捷键
-// @description:en  [Authorship] This script's code was generated with AI assistance; the author reviewed it line by line and verified it in a real environment before publishing. Please report issues on GitHub. | [Permission notice] This script requests the Cookie permission for ONE purpose only: writing a buvid3 device-id cookie when Bilibili returns risk-control errors (-412/-352). It never reads or uploads any of your cookies — there is no third-party server, all requests go directly to bilibili.com. You may delete line 25 (@grant GM_cookie) to drop the permission; everything else keeps working. | Features: replaces Bilibili's native search: official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, UP tracking, config backup, persistent entry button and custom hotkey.
+// @version      2.4.2
+// @description  【编写说明】本脚本代码由 AI 辅助生成，未经过完整人工代码审阅，可能存在未覆盖到的边界情况，使用前请自行判断；源码公开可查，发现问题请在 GitHub 提 issue。｜【权限说明】本脚本会申请 Cookie 权限——仅用于在 B 站返回风控错误(-412/-352)时写入一个 buvid3 设备标识，不会读取、不会上传你的任何 Cookie（脚本无任何第三方服务器，全部请求直连 bilibili.com）。不需要可删除脚本第 25 行 @grant GM_cookie，其余功能不受影响。｜功能：接管 B 站顶部搜索：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，UP主追踪，配置备份，常驻入口按钮与自定义快捷键
+// @description:en  [Authorship] This script's code was generated with AI assistance and has NOT gone through a full human code review; there may be unhandled edge cases, so use your own judgement. The source is public and reviewable — please report issues on GitHub. | [Permission notice] This script requests the Cookie permission for ONE purpose only: writing a buvid3 device-id cookie when Bilibili returns risk-control errors (-412/-352). It never reads or uploads any of your cookies — there is no third-party server, all requests go directly to bilibili.com. You may delete line 25 (@grant GM_cookie) to drop the permission; everything else keeps working. | Features: replaces Bilibili's native search: official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, UP tracking, config backup, persistent entry button and custom hotkey.
 // @author       saiyajiang
 // @license      MIT
 // @homepageURL  https://github.com/saiyajiang/Bilibili-Search-Replace
@@ -22,9 +22,9 @@
 // @grant        GM_registerMenuCommand
 // @grant        GM_cookie
 // @note         编写说明：本脚本代码由 AI 辅助生成，非作者逐字手写。
-// @note         作者已通读全部代码、在真实浏览器环境验证核心功能后发布，
-// @note         但 AI 生成的代码仍可能存在未覆盖到的边界情况，使用前请自行判断，
-// @note         遇到问题欢迎在 GitHub 提 issue（见 @supportURL）。
+// @note         它未经过完整的人工代码审阅——作者没有逐行核对过全部实现，
+// @note         因此可能存在未被覆盖到的边界情况，使用前请自行判断。
+// @note         源码公开可查，遇到问题欢迎在 GitHub 提 issue（见 @supportURL）。
 // @note         Cookie 权限说明（可自行核对）：
 // @note           代码中 GM_cookie.set( 只出现 1 次，且仅在 B 站返回风控错误(-412/-352)时执行，
 // @note           写入的是名为 buvid3 的设备标识（值取自 B 站官方指纹接口 /x/frontend/finger/spi）。
@@ -174,10 +174,23 @@
   const HIST_KEY = 'bcs_history_v2';
   let history = [];
   try { history = JSON.parse(GM_getValue(HIST_KEY, '[]')) || []; } catch (e) { history = []; }
+
+  /* 未上屏的输入法拼音串兜底识别，如「天际线2 ying'xing'dao'lu」。
+   * 主要防线是 composition 事件（组合期间根本不处理输入），这里只是二次保险，
+   * 用于拦下个别浏览器事件时序异常时漏进来的内容，同时也用来清理历史里的残留。
+   * 规则刻意收得很窄：至少 4 段由单引号连接的纯字母音节，
+   * 避免误伤 rock'n'roll 这类正常的英文写法（它只有 3 段）。 */
+  const IME_LEFT_RE = /(^|[\s\u3000])[a-z0-9]+('[a-z0-9]+){3,}($|[\s\u3000])/i;
+  function looksLikeIme(kw) { return IME_LEFT_RE.test(String(kw || '')); }
+
+  function saveHistory() {
+    try { GM_setValue(HIST_KEY, JSON.stringify(history)); } catch (e) { }
+  }
   function pushHistory(kw) {
     if (!cfg.saveHistory || !kw) return;
+    if (looksLikeIme(kw)) return;   // 看起来是没打完的拼音，不记
     history = [kw].concat(history.filter(x => x !== kw)).slice(0, 40);
-    try { GM_setValue(HIST_KEY, JSON.stringify(history)); } catch (e) { }
+    saveHistory();
   }
 
   /* =======================================================================
@@ -1031,11 +1044,28 @@
       if (state.kw) { clearList(); runSearch(); }
     });
 
-    input.addEventListener('input', () => {
+    /* 输入法组合（拼音/日文/韩文候选）期间，input.value 会是尚未上屏的拼音串
+     * （如 ying'xing'dao'lu）。若此时照常处理，这些半成品会被当成关键词去搜索、
+     * 还会被写进搜索历史。用 composition 事件 + isComposing 双重判断挡掉。 */
+    let composing = false;
+    const onInput = () => {
       state.kw = input.value.trim();
       if (!state.kw) { state.mode = 'idle'; clearList(); showHome(); return; }
       if (cfg.suggest) { state.mode = 'suggest'; debounceSuggest(); }
       debounceSearch();
+    };
+    input.addEventListener('compositionstart', () => {
+      composing = true;
+      // 组合开始时把已排队的搜索/建议取消，避免把拼音串发出去
+      clearTimeout(rTimer); clearTimeout(sTimer);
+    });
+    input.addEventListener('compositionend', () => {
+      composing = false;
+      onInput();   // 组合结束（候选已上屏）后再正常处理一次
+    });
+    input.addEventListener('input', e => {
+      if (composing || (e && e.isComposing)) return;
+      onInput();
     });
     input.addEventListener('keydown', onPanelKey);
 
@@ -1305,10 +1335,25 @@
       clr.style.cssText = 'color:var(--bcs-accent);cursor:pointer;font-size:12px';
       clr.addEventListener('click', () => {
         history = [];
-        try { GM_setValue(HIST_KEY, '[]'); } catch (e) { }
+        saveHistory();
         showHome();
       });
       h.appendChild(clr);
+      // 历史里若混入了未上屏的拼音串（旧版本会记录），给一个清理入口
+      if (history.some(looksLikeIme)) {
+        const clean = document.createElement('a');
+        clean.textContent = '清理拼音残留';
+        clean.style.cssText = 'color:var(--bcs-accent);cursor:pointer;font-size:12px';
+        clean.title = '移除类似「天际线2 ying\'xing\'dao\'lu」这种没打完就被记下来的条目';
+        clean.addEventListener('click', () => {
+          const before = history.length;
+          history = history.filter(x => !looksLikeIme(x));
+          saveHistory();
+          showHome();
+          setStatus('已清理 ' + (before - history.length) + ' 条拼音残留记录');
+        });
+        h.appendChild(clean);
+      }
       chipsEl.appendChild(h);
       const box = document.createElement('div');
       box.className = 'bcs-chips';
@@ -1322,7 +1367,7 @@
         x.addEventListener('click', e => {
           e.stopPropagation();
           history = history.filter(x2 => x2 !== kw);
-          try { GM_setValue(HIST_KEY, JSON.stringify(history)); } catch (e2) { }
+          saveHistory();
           showHome();
         });
         c.appendChild(x);
@@ -1616,6 +1661,9 @@
 
   /* --- 键盘 --- */
   function onPanelKey(e) {
+    // 输入法组合期间的按键（含用 Enter / Esc 确认或取消候选）不应触发面板操作。
+    // keyCode 229 是各浏览器通用的「输入法正在处理」标志。
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key === 'Escape') { e.preventDefault(); closePanel(); return; }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -1730,7 +1778,7 @@
       }
       if (Array.isArray(data.history)) {
         history = data.history.filter(x => typeof x === 'string').slice(0, 40);
-        try { GM_setValue(HIST_KEY, JSON.stringify(history)); } catch (e) { }
+        saveHistory();
       }
       applyCfg();
       noticesExpanded = !cfg.ackNotices;
@@ -1753,13 +1801,13 @@
       permHtml = `
       <div class="bcs-perm bcs-perm-ai">
       <div class="bcs-perm-h">🤖 编写说明：AI 辅助生成</div>
-      <p>本脚本的代码由 <b>AI 辅助生成</b>，并非作者逐字手写。作者已通读全部代码、
-      并在真实浏览器环境中验证核心功能后发布。</p>
-      <p>需要你知道的是：<b>AI 生成的代码可能存在未被覆盖到的边界情况</b>。
-      脚本不涉及你的账号安全操作（不读取 Cookie、不上传任何数据），
+      <p>本脚本的代码由 <b>AI 辅助生成</b>，并非作者逐字手写。</p>
+      <p><b>它未经过完整的人工代码审阅</b>——作者没有逐行核对过全部实现，
+      因此可能存在未被发现的边界情况或缺陷，使用前请自行判断。</p>
+      <p>脚本不涉及你的账号安全操作（不读取 Cookie、不上传任何数据），
       但功能层面若有异常，欢迎在
       <a href="https://github.com/saiyajiang/Bilibili-Search-Replace/issues" target="_blank" rel="noopener">GitHub 提 issue</a>
-      反馈，源码完全公开可自行审阅。</p>
+      反馈，源码完全公开可自行查看。</p>
       </div>
       <div class="bcs-perm">
       <div class="bcs-perm-h">🔐 关于 Cookie 权限</div>
@@ -1848,7 +1896,7 @@
         </span></div>
       <div class="bcs-set-row"><span>筛选预设<em>★ 设为该类目默认 · ✎ 重命名 · ✕ 删除；默认预设会在每次打开面板时自动套用</em></span>
         <span class="bcs-preset-list">${presets.length ? presets.map(p => `<span class="bcs-tag"><i data-pact="def" data-pid="${escapeHtml(p.id)}" title="设为默认">${p.def ? '★' : '☆'}</i><b>${escapeHtml(p.name)}</b><em style="font-style:normal">${typeLabel(p.type)}</em><i data-pact="ren" data-pid="${escapeHtml(p.id)}">✎</i><i data-pact="del" data-pid="${escapeHtml(p.id)}">✕</i></span>`).join('') : '<span style="color:var(--bcs-sub);font-size:12px">还没有预设，去筛选栏点「＋ 保存当前」</span>'}</span></div>
-      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.4.1 · AI 辅助编写 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
+      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.4.2 · AI 辅助编写 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
         <button class="bcs-toggle" data-act="reset">恢复默认</button></div>`;
 
     settingsEl.querySelectorAll('.bcs-set-row[data-key]').forEach(row => {
