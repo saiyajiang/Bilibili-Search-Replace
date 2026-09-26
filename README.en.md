@@ -1,6 +1,7 @@
 # Bilibili-Search-Replace
 
-> Replace Bilibili's native search with a custom panel: **official API + local relevance re-ranking**, so results stop being padded with loosely-matched and promoted content.
+> A **standalone** Bilibili search panel: **official API + local relevance re-ranking**, so results stop being padded with loosely-matched and promoted content.
+> **The native search box is left untouched by default** — open this panel from the persistent button or hotkey. Taking over the native box is opt-in in settings.
 
 [中文版](README.md)
 
@@ -134,10 +135,15 @@ Category filtering maps **sub-category → top-level category** before comparing
 
 ## Compatibility
 
-Tested with Tampermonkey on Chromium and Firefox. The top search box is bound in the **capture phase** with `stopImmediatePropagation`, so Bilibili's own Vue listeners never fire (no native dropdown, no redirect to `search.bilibili.com`). A `MutationObserver` + periodic re-bind handles SPA re-renders; if the selectors ever break after a site redesign, a floating fallback button appears bottom-right.
+Tested with Tampermonkey on Chromium and Firefox.
+
+**The native search box is not touched by default.** Enter, the search button and the dropdown all behave exactly as Bilibili intended; the script lives as a standalone panel opened from the persistent button or hotkey.
+
+If you enable "Take over the top search box" in settings, the box is bound in the **capture phase** with `stopImmediatePropagation`, so Bilibili's own Vue listeners never fire (no native dropdown, no redirect to `search.bilibili.com`). A `MutationObserver` + periodic re-bind handles SPA re-renders; if the selectors ever break after a site redesign, a floating fallback button appears bottom-right.
 
 ## Changelog
 
+- **2.5.0** — **No longer takes over the native search box by default** (`hijackTopSearch` defaults to off): Enter, the search button and the native dropdown all behave exactly as Bilibili intended, and the script works as a standalone panel opened from the persistent button or hotkey. Takeover is still available in settings (changing it requires a page reload).
 - **2.4.2** — Corrected an inaccurate authorship claim (it said the author had reviewed every line and verified in a real environment, which was not the case); fixed **uncommitted IME pinyin being searched and saved to history**: input is not processed during composition, and existing pinyin leftovers can be cleaned from the history in one click.
 - **2.4.1** — Fixed **duplicate results**: Bilibili's default ordering repeats the same video across pages, and strict filtering fetches several pages per search, so the same item showed up multiple times. Results are now de-duplicated across pages by business id (bvid / mid / roomid), with a "N duplicates removed" counter.
 - **2.4.0** — **Strict filtering is now AND**: the title must match every keyword, missing one drops it (previously matching any one keyword was enough, so an FGO video that only mentioned 河上彦斋 survived a search for 河上彦斋 浪人崛起). UP-name-only matches no longer count. If nothing matches, the list is empty with a one-click way to relax it.
