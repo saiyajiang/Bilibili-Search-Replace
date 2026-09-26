@@ -4,7 +4,7 @@
 
 [中文版](README.md)
 
-> 🤖 **Authorship**: this script's code was **generated with AI assistance**, not hand-written word by word. The author read through the entire source and verified the core functionality in a real browser before publishing. AI-generated code may still contain edge cases that were not covered — use your own judgement. The source is fully public and reviewable; please [open an issue](https://github.com/saiyajiang/Bilibili-Search-Replace/issues) if you find anything.
+> 🤖 **Authorship**: this script's code was **generated with AI assistance**, not hand-written word by word, and it has **not gone through a full human code review** — the author did not verify every line. There may therefore be undiscovered edge cases or defects; use your own judgement. The source is fully public; please [open an issue](https://github.com/saiyajiang/Bilibili-Search-Replace/issues) if you find anything.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -76,7 +76,7 @@ This script splits the job in two: the official API is only a **data source**, a
 | **Track UP** | Weight an UP without following them: their videos get a score boost under relevance ranking; the boost strength is configurable |
 | **Blocking** | Per-result hover buttons to block an UP (**with a confirm step**) or a word; lists in settings show **both nickname and UID** |
 | **Config backup** | Export everything to a JSON file (settings, presets, block/track lists, history) and import it back; also available from the Tampermonkey menu |
-| **History** | Native dropdown (history / trending / suggestions) is suppressed; the script keeps its own local history |
+| **History** | Native dropdown (history / trending / suggestions) is suppressed; the script keeps its own local history — **uncommitted IME pinyin is never recorded** |
 | **Hot search toggle** | Bilibili trending search is **off by default** (it needs an extra request); enable it from the empty-state panel or in settings |
 | **Opening it** | A **persistent button** bottom-right (switchable to bottom-left), shown by default; hotkey defaults to `Alt+K` and is **fully customizable** (click the field in settings, then just press the combo) |
 | **Keyboard** | `↑↓` select · `Enter` open · `Ctrl+Enter` / middle-click new tab · `Esc` close |
@@ -138,6 +138,7 @@ Tested with Tampermonkey on Chromium and Firefox. The top search box is bound in
 
 ## Changelog
 
+- **2.4.2** — Corrected an inaccurate authorship claim (it said the author had reviewed every line and verified in a real environment, which was not the case); fixed **uncommitted IME pinyin being searched and saved to history**: input is not processed during composition, and existing pinyin leftovers can be cleaned from the history in one click.
 - **2.4.1** — Fixed **duplicate results**: Bilibili's default ordering repeats the same video across pages, and strict filtering fetches several pages per search, so the same item showed up multiple times. Results are now de-duplicated across pages by business id (bvid / mid / roomid), with a "N duplicates removed" counter.
 - **2.4.0** — **Strict filtering is now AND**: the title must match every keyword, missing one drops it (previously matching any one keyword was enough, so an FGO video that only mentioned 河上彦斋 survived a search for 河上彦斋 浪人崛起). UP-name-only matches no longer count. If nothing matches, the list is empty with a one-click way to relax it.
 - **2.3.0** — Persistent entry button **shown by default** and restyled to match Bilibili (pink, rounded, line icon; can move to bottom-left); **customizable hotkey** (defaults to Alt+K, click the field and press your combo, with a warning for browser-reserved keys); fixed typed text being wiped when re-opening the panel.
