@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         B站搜索替代器（自定义搜索面板）
 // @namespace    https://github.com/saiyajiang
-// @version      2.4.2
-// @description  【编写说明】本脚本代码由 AI 辅助生成，未经过完整人工代码审阅，可能存在未覆盖到的边界情况，使用前请自行判断；源码公开可查，发现问题请在 GitHub 提 issue。｜【权限说明】本脚本会申请 Cookie 权限——仅用于在 B 站返回风控错误(-412/-352)时写入一个 buvid3 设备标识，不会读取、不会上传你的任何 Cookie（脚本无任何第三方服务器，全部请求直连 bilibili.com）。不需要可删除脚本第 25 行 @grant GM_cookie，其余功能不受影响。｜功能：接管 B 站顶部搜索：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，UP主追踪，配置备份，常驻入口按钮与自定义快捷键
-// @description:en  [Authorship] This script's code was generated with AI assistance and has NOT gone through a full human code review; there may be unhandled edge cases, so use your own judgement. The source is public and reviewable — please report issues on GitHub. | [Permission notice] This script requests the Cookie permission for ONE purpose only: writing a buvid3 device-id cookie when Bilibili returns risk-control errors (-412/-352). It never reads or uploads any of your cookies — there is no third-party server, all requests go directly to bilibili.com. You may delete line 25 (@grant GM_cookie) to drop the permission; everything else keeps working. | Features: replaces Bilibili's native search: official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, UP tracking, config backup, persistent entry button and custom hotkey.
+// @version      2.5.0
+// @description  【编写说明】本脚本代码由 AI 辅助生成，未经过完整人工代码审阅，可能存在未覆盖到的边界情况，使用前请自行判断；源码公开可查，发现问题请在 GitHub 提 issue。｜【权限说明】本脚本会申请 Cookie 权限——仅用于在 B 站返回风控错误(-412/-352)时写入一个 buvid3 设备标识，不会读取、不会上传你的任何 Cookie（脚本无任何第三方服务器，全部请求直连 bilibili.com）。不需要可删除脚本第 25 行 @grant GM_cookie，其余功能不受影响。｜功能：独立的 B 站搜索面板（默认不改动 B 站原版搜索框，可从常驻按钮或快捷键唤出；也可选接管原版搜索框）：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，UP主追踪，配置备份，常驻入口按钮与自定义快捷键
+// @description:en  [Authorship] This script's code was generated with AI assistance and has NOT gone through a full human code review; there may be unhandled edge cases, so use your own judgement. The source is public and reviewable — please report issues on GitHub. | [Permission notice] This script requests the Cookie permission for ONE purpose only: writing a buvid3 device-id cookie when Bilibili returns risk-control errors (-412/-352). It never reads or uploads any of your cookies — there is no third-party server, all requests go directly to bilibili.com. You may delete line 25 (@grant GM_cookie) to drop the permission; everything else keeps working. | Features: a standalone Bilibili search panel (leaves the native search box untouched by default — open it from the persistent button or hotkey; taking over the native box is optional): official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, UP tracking, config backup, persistent entry button and custom hotkey.
 // @author       saiyajiang
 // @license      MIT
 // @homepageURL  https://github.com/saiyajiang/Bilibili-Search-Replace
@@ -44,8 +44,8 @@
    * ===================================================================== */
   const CFG_KEY = 'bcs_cfg_v2';
   const DEFAULT_CFG = {
-    hijackTopSearch: true,    // 接管顶部搜索框
-    killDropdown: true,       // 屏蔽原生下拉（历史/大家都在搜/猜你想搜）
+    hijackTopSearch: false,   // 接管顶部搜索框（默认关闭：不动 B 站原版搜索框，脚本作为独立面板使用）
+    killDropdown: true,       // 屏蔽原生下拉（历史/大家都在搜/猜你想搜），仅在接管开启时生效
     hotkey: true,             // Alt + K 唤出
     suggest: true,            // 搜索建议
     showHot: false,           // 空态显示 B 站热搜（默认关闭：需额外请求热搜接口）
@@ -1839,8 +1839,8 @@
     }
 
     const rows = [
-      ['hijackTopSearch', '接管顶部搜索框', '回车与搜索按钮走自定义面板'],
-      ['killDropdown', '屏蔽搜索框下拉推荐', '隐藏历史记录、猜你想搜、大家都在搜'],
+      ['hijackTopSearch', '接管顶部搜索框（默认关闭）', '开启后，B 站原版搜索框回车/搜索按钮会改为唤起本面板；关闭则原版搜索框完全不受影响。改此项需刷新页面'],
+      ['killDropdown', '屏蔽搜索框下拉推荐', '隐藏原版下拉的历史记录、猜你想搜、大家都在搜；仅在「接管顶部搜索框」开启时生效'],
       ['hotkey', '启用快捷键唤出面板', '快捷键可能与浏览器或其它扩展冲突，冲突时改下面那个组合，或用常驻入口按钮'],
       ['suggest', '显示搜索建议', '输入时展示官方 suggest 词'],
       ['showHot', '空态显示 B 站热搜', '默认关闭：开启后会额外请求热搜榜接口'],
@@ -1896,7 +1896,7 @@
         </span></div>
       <div class="bcs-set-row"><span>筛选预设<em>★ 设为该类目默认 · ✎ 重命名 · ✕ 删除；默认预设会在每次打开面板时自动套用</em></span>
         <span class="bcs-preset-list">${presets.length ? presets.map(p => `<span class="bcs-tag"><i data-pact="def" data-pid="${escapeHtml(p.id)}" title="设为默认">${p.def ? '★' : '☆'}</i><b>${escapeHtml(p.name)}</b><em style="font-style:normal">${typeLabel(p.type)}</em><i data-pact="ren" data-pid="${escapeHtml(p.id)}">✎</i><i data-pact="del" data-pid="${escapeHtml(p.id)}">✕</i></span>`).join('') : '<span style="color:var(--bcs-sub);font-size:12px">还没有预设，去筛选栏点「＋ 保存当前」</span>'}</span></div>
-      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.4.2 · AI 辅助编写 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
+      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.5.0 · AI 辅助编写 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
         <button class="bcs-toggle" data-act="reset">恢复默认</button></div>`;
 
     settingsEl.querySelectorAll('.bcs-set-row[data-key]').forEach(row => {
@@ -2181,7 +2181,8 @@
   }
 
   function killDropdownStatic() {
-    if (!cfg.killDropdown) return;
+    // 不接管原生搜索框时，绝不动它的下拉——否则等于把原版搜索框改残
+    if (!cfg.hijackTopSearch || !cfg.killDropdown) return;
     if (location.hostname === 'search.bilibili.com') return;
     DROPDOWN_SELECTORS.forEach(sel => {
       document.querySelectorAll(sel).forEach(el => { el.style.display = 'none'; });
