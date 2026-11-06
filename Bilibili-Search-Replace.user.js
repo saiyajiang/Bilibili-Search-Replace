@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         B站搜索替代器（自定义搜索面板）
 // @namespace    https://github.com/saiyajiang
-// @version      2.5.0
-// @description  【编写说明】本脚本代码由 AI 辅助生成，未经过完整人工代码审阅，可能存在未覆盖到的边界情况，使用前请自行判断；源码公开可查，发现问题请在 GitHub 提 issue。｜【权限说明】本脚本会申请 Cookie 权限——仅用于在 B 站返回风控错误(-412/-352)时写入一个 buvid3 设备标识，不会读取、不会上传你的任何 Cookie（脚本无任何第三方服务器，全部请求直连 bilibili.com）。不需要可删除脚本第 25 行 @grant GM_cookie，其余功能不受影响。｜功能：独立的 B 站搜索面板（默认不改动 B 站原版搜索框，可从常驻按钮或快捷键唤出；也可选接管原版搜索框）：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，UP主追踪，配置备份，常驻入口按钮与自定义快捷键
-// @description:en  [Authorship] This script's code was generated with AI assistance and has NOT gone through a full human code review; there may be unhandled edge cases, so use your own judgement. The source is public and reviewable — please report issues on GitHub. | [Permission notice] This script requests the Cookie permission for ONE purpose only: writing a buvid3 device-id cookie when Bilibili returns risk-control errors (-412/-352). It never reads or uploads any of your cookies — there is no third-party server, all requests go directly to bilibili.com. You may delete line 25 (@grant GM_cookie) to drop the permission; everything else keeps working. | Features: a standalone Bilibili search panel (leaves the native search box untouched by default — open it from the persistent button or hotkey; taking over the native box is optional): official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, UP tracking, config backup, persistent entry button and custom hotkey.
+// @version      2.6.0
+// @description  【编写说明】本脚本代码由 AI 辅助生成，未经过完整人工代码审阅，可能存在未覆盖到的边界情况，使用前请自行判断；源码公开可查，发现问题请在 GitHub 提 issue。｜【权限说明】本脚本不申请 Cookie 权限，也不读取、不上传你的任何 Cookie；未登录 / 无痕模式下会按 B 站自己的方式写入访客设备标识（buvid3 / buvid4，值来自 B 站官方指纹接口），仅用于让搜索接口通过风控校验。全部请求直连 bilibili.com，无第三方服务器。｜功能：独立的 B 站搜索面板（默认不改动 B 站原版搜索框，可从常驻按钮或快捷键唤出；也可选接管原版搜索框）：官方接口 + 相关性重排/严格过滤，支持时间范围、弹幕量、播放量、时长、分区筛选，筛选可保存为预设并设为默认，本地搜索历史，屏蔽词与UP主屏蔽，UP主追踪，配置备份，常驻入口按钮与自定义快捷键；支持未登录 / 无痕模式
+// @description:en  [Authorship] This script's code was generated with AI assistance and has NOT gone through a full human code review; there may be unhandled edge cases, so use your own judgement. The source is public and reviewable — please report issues on GitHub. | [Permission notice] This script does NOT request the Cookie permission and never reads or uploads any of your cookies. When logged out / in incognito it writes Bilibili's own guest device ids (buvid3 / buvid4, obtained from Bilibili's public fingerprint endpoint) so the search API passes risk control. Every request goes directly to bilibili.com; there is no third-party server. | Features: a standalone Bilibili search panel (leaves the native search box untouched by default — open it from the persistent button or hotkey; taking over the native box is optional): official API + relevance re-ranking / strict filtering, with time range, danmaku count, play count, duration and category filters. Filters can be saved as presets. Local search history, word/UP blocking, UP tracking, config backup, persistent entry button and custom hotkey; works logged out / in incognito.
 // @author       saiyajiang
 // @license      MIT
 // @homepageURL  https://github.com/saiyajiang/Bilibili-Search-Replace
@@ -20,16 +20,16 @@
 // @grant        GM_getValue
 // @grant        GM_deleteValue
 // @grant        GM_registerMenuCommand
-// @grant        GM_cookie
+// @grant        unsafeWindow
 // @note         编写说明：本脚本代码由 AI 辅助生成，非作者逐字手写。
 // @note         它未经过完整的人工代码审阅——作者没有逐行核对过全部实现，
 // @note         因此可能存在未被覆盖到的边界情况，使用前请自行判断。
 // @note         源码公开可查，遇到问题欢迎在 GitHub 提 issue（见 @supportURL）。
-// @note         Cookie 权限说明（可自行核对）：
-// @note           代码中 GM_cookie.set( 只出现 1 次，且仅在 B 站返回风控错误(-412/-352)时执行，
-// @note           写入的是名为 buvid3 的设备标识（值取自 B 站官方指纹接口 /x/frontend/finger/spi）。
-// @note           代码中不存在 GM_cookie.list( / .get( / .delete(，因此无法读取你的登录态或其它任何 Cookie。
-// @note         如不需要，删除上方 "@grant GM_cookie" 这一行即可彻底移除该权限，其余功能不受影响。
+// @note         权限说明：脚本不申请 Cookie 权限，源码中不含 GM_cookie 调用。
+// @note         未登录 / 无痕模式下，通过 document.cookie 写入 B 站自己的访客标识
+// @note         （buvid3 / buvid4，取自官方 /x/frontend/finger/spi），与 B 站页面自身行为一致；
+// @note         请求由页面上下文 fetch(credentials:include) 发出，因此只携带当前会话的 Cookie，
+// @note         脚本自身不读取、不导出、不上传任何 Cookie。
 // @connect      api.bilibili.com
 // @connect      s.search.bilibili.com
 // @run-at       document-idle
@@ -377,36 +377,77 @@
     if (!force && cached && cached.img && cached.sub && Date.now() - cached.ts < 30 * 60 * 1000) {
       return { img: cached.img, sub: cached.sub };
     }
-    const json = await apiGet('https://api.bilibili.com/x/web-interface/nav');
-    const w = json && json.data && json.data.wbi_img;
-    if (!w || !w.img_url || !w.sub_url) throw new Error('无法获取 WBI 密钥（需登录或接口异常）');
-    const keys = {
-      img: w.img_url.split('/').pop().split('.')[0],
-      sub: w.sub_url.split('/').pop().split('.')[0],
-      ts: Date.now()
-    };
-    GM_setValue(WBI_CACHE_KEY, keys);
-    return keys;
+    // 未登录时 /x/web-interface/nav 返回 code=-101，但 data.wbi_img 依然可用，
+    // 所以这里只看 data.wbi_img，不要求 code === 0（旧版曾因此误判为「需登录」而抛错）。
+    // 拿不到密钥也不抛错——返回 null，让 rawSearch 走无签名旧接口兜底。
+    try {
+      const json = await apiGet('https://api.bilibili.com/x/web-interface/nav');
+      const w = json && json.data && json.data.wbi_img;
+      if (w && w.img_url && w.sub_url) {
+        const keys = {
+          img: w.img_url.split('/').pop().split('.')[0],
+          sub: w.sub_url.split('/').pop().split('.')[0],
+          ts: Date.now()
+        };
+        GM_setValue(WBI_CACHE_KEY, keys);
+        return keys;
+      }
+    } catch (e) { }
+    return null;
   }
 
   /* =======================================================================
    * 4. 网络层
+   *
+   * 未登录 / 无痕模式下搜不到东西，根因是两条：
+   *   1) 会话里没有 B 站的访客设备标识 buvid3/buvid4，搜索接口直接返回 -412/-352；
+   *   2) 扩展上下文的 GM_xmlhttpRequest 在某些浏览器无痕模式下拿不到该会话的 Cookie。
+   * 因此改成：先用页面上下文 fetch(credentials:'include')（浏览器自动带上当前会话
+   * Cookie），失败再退回 GM_xmlhttpRequest；并在发搜索请求前主动引导访客身份。
    * ===================================================================== */
-  function gmFetch(url, opt) {
-    opt = opt || {};
+  function parseJsonText(t) {
+    try { return JSON.parse(t); } catch (e) { return null; }
+  }
+
+  // A. 页面上下文 fetch —— 未登录 / 无痕模式的关键
+  function pageFetchText(url) {
+    return new Promise((resolve, reject) => {
+      let done = false, timer;
+      const finish = (err, text) => {
+        if (done) return;
+        done = true; clearTimeout(timer);
+        err ? reject(err) : resolve(text);
+      };
+      timer = setTimeout(() => finish(new Error('页面请求超时')), 15000);
+      try {
+        const w = (typeof unsafeWindow !== 'undefined' && unsafeWindow) ? unsafeWindow : window;
+        const f = w.fetch || window.fetch;
+        if (!f) { finish(new Error('当前环境不支持 fetch')); return; }
+        f.call(w, url, {
+          method: 'GET',
+          credentials: 'include',
+          headers: { 'Accept': 'application/json, text/plain, */*' }
+        }).then(r => r.text()).then(t => finish(null, t)).catch(e => finish(e));
+      } catch (e) { finish(e); }
+    });
+  }
+
+  // B. 扩展上下文 GM_xmlhttpRequest —— 页面 fetch 被 CSP / CORS 挡住时兜底
+  function gmFetchText(url) {
     return new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
-        method: opt.method || 'GET',
-        url: url,
-        headers: Object.assign({
+        method: 'GET', url: url,
+        withCredentials: true,
+        headers: {
           'Referer': 'https://www.bilibili.com/',
           'Origin': 'https://www.bilibili.com',
-          'Accept': 'application/json, text/plain, */*'
-        }, opt.headers || {}),
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8'
+        },
         timeout: 15000,
         onload(r) {
-          try { resolve(JSON.parse(r.responseText)); }
-          catch (e) { reject(new Error('响应解析失败（HTTP ' + r.status + '）')); }
+          if (r.status >= 400) reject(new Error('HTTP ' + r.status + '（可能被 WAF 拦截）'));
+          else resolve(r.responseText);
         },
         onerror: () => reject(new Error('网络请求失败')),
         ontimeout: () => reject(new Error('请求超时'))
@@ -414,55 +455,79 @@
     });
   }
 
-  /* ------------------------------------------------------------------
-   * Cookie 权限的唯一用途
-   *
-   * 触发条件：仅当 B 站接口返回风控错误码 -412「请求被拦截」或 -352「风险等级不足」时。
-   * 做了什么：调用 B 站官方指纹接口 /x/frontend/finger/spi 取一个设备标识 b_3，
-   *           然后写入名为 buvid3 的 Cookie（域名 .bilibili.com，有效期 1 年）。
-   *           这等价于 B 站自己在新设备上首次访问时做的事，用于让后续搜索请求通过校验。
-   *
-   * 安全边界（可自行核对）：
-   *   - 只写不读：代码中 GM_cookie.set( 只此一处，不存在 GM_cookie.list / get / delete
-   *     （可搜索验证），因此脚本无法读取你的登录态或任何其它 Cookie。
-   *   - 不外传：写入的值直接来自 bilibili.com 自己返回的接口，脚本不拼接、不记录、不发送。
-   *   - 不常驻：只在真正触发风控时执行一次（buvidFixed 标记，整个页面生命周期最多一次）。
-   *
-   * 不需要该权限：删掉脚本头部 "// @grant GM_cookie" 这一行即可。
-   * 代码已用 typeof GM_cookie === 'undefined' 做了保护，移除后其余功能完全正常，
-   * 只是遇到 -412/-352 时无法自动恢复（此时会提示你手动访问一次 bilibili.com）。
-   * ------------------------------------------------------------------ */
-  let buvidFixed = false;
-  async function ensureBuvid3() {
-    if (buvidFixed || typeof GM_cookie === 'undefined') return;
+  const TRANSPORTS = [pageFetchText, gmFetchText];
+
+  // 依次尝试两种通道；优先取 code===0，其次保留业务错误码交给上层判断。
+  // 明确的业务错误（如 nav 的 -101 未登录）直接返回，不再多发一次请求；
+  // 风控码 -412/-352 则换一条通道再试，因为不同通道携带的 Cookie 可能不同。
+  async function requestJson(url) {
+    let fallbackJson = null, lastErr = null;
+    for (const fn of TRANSPORTS) {
+      try {
+        const j = parseJsonText(await fn(url));
+        if (j) {
+          if (j.code === 0) return j;
+          if (j.code !== -412 && j.code !== -352) return j;
+          if (!fallbackJson) fallbackJson = j;
+        } else if (!lastErr) {
+          lastErr = new Error('响应解析失败（不是 JSON，可能被 B 站 WAF 拦截）');
+        }
+      } catch (e) { lastErr = e; }
+    }
+    if (fallbackJson) return fallbackJson;
+    throw lastErr || new Error('网络请求失败');
+  }
+
+  // 兼容旧调用点（搜索建议 / 热搜）
+  function gmFetch(url) { return requestJson(url); }
+
+  /* --- 访客身份 ---------------------------------------------------------
+   * 与 B 站自己做的事一致：拿官方指纹接口 /x/frontend/finger/spi 返回的 b_3/b_4，
+   * 用 document.cookie 写成 .bilibili.com 的 buvid3 / buvid4（外加 b_nut 时间戳）。
+   * 不需要任何特殊权限；不读取、不导出、不上传已有 Cookie。 */
+  let guestPromise = null, guestOk = false;
+
+  function setBiliCookie(name, value) {
     try {
-      const spi = await gmFetch('https://api.bilibili.com/x/frontend/finger/spi');
-      const b3 = spi && spi.data && spi.data.b_3;
-      if (!b3) return;
-      GM_cookie.set({
-        url: 'https://www.bilibili.com', name: 'buvid3', value: b3,
-        domain: '.bilibili.com', path: '/',
-        expirationDate: Math.floor(Date.now() / 1000) + 3600 * 24 * 365
-      }, () => { });
-      buvidFixed = true;
+      document.cookie = name + '=' + encodeURIComponent(value) +
+        '; Domain=.bilibili.com; Path=/; Max-Age=31536000; SameSite=Lax; Secure';
     } catch (e) { }
+  }
+  function hasBiliCookie(name) {
+    try { return new RegExp('(?:^|;\\s*)' + name + '=').test(document.cookie); }
+    catch (e) { return false; }
+  }
+
+  function ensureGuestIdentity() {
+    if (guestPromise) return guestPromise;
+    guestPromise = (async () => {
+      if (hasBiliCookie('buvid3') && hasBiliCookie('buvid4')) { guestOk = true; return true; }
+      try {
+        const j = await requestJson('https://api.bilibili.com/x/frontend/finger/spi');
+        const d = j && j.data;
+        if (!d) return false;
+        if (d.b_3) setBiliCookie('buvid3', d.b_3);
+        if (d.b_4) setBiliCookie('buvid4', d.b_4);
+        setBiliCookie('b_nut', String(Math.floor(Date.now() / 1000)));
+        guestOk = !!(d.b_3 || d.b_4 || hasBiliCookie('buvid3'));
+        return guestOk;
+      } catch (e) { return false; }
+    })();
+    return guestPromise;
   }
 
   async function apiGet(url, retry) {
-    let json = await gmFetch(url);
+    await ensureGuestIdentity();
+    let json = await requestJson(url);
     if (json && (json.code === -412 || json.code === -352) && !retry) {
-      await ensureBuvid3();
-      const again = await apiGet(url, true);
-      if (again && (again.code === -412 || again.code === -352)) {
-        const noCookie = typeof GM_cookie === 'undefined';
-        throw new Error('B 站风控拦截（code ' + again.code + '）。' +
-          (noCookie
-            ? '当前脚本未申请 Cookie 权限，无法自动补种设备标识，请手动打开一次 www.bilibili.com 再重试。'
-            : '自动补种设备标识后仍被拦截，请手动打开一次 www.bilibili.com（或重新登录）后再重试。'));
-      }
-      return again;
+      // 重新引导一次访客标识（有时 Cookie 刚写入、首个请求已经发出去了）
+      guestPromise = null;
+      await ensureGuestIdentity();
+      const again = await requestJson(url);
+      if (again && again.code === 0) return again;
+      json = again || json;
     }
-    return json;
+    return json;   // 把风控码原样交给 rawSearch，让它继续尝试其它接口
   }
 
   /* =======================================================================
@@ -738,7 +803,8 @@
 
   async function rawSearch(kw, page) {
     const f = state.filters;
-    const keys = await getWbiKeys();
+    await ensureGuestIdentity();
+    const keys = await getWbiKeys();   // 失败时返回 null，不再抛错
     const params = { search_type: state.type, keyword: kw, page: page, page_size: cfg.pageSize };
 
     if (state.type === 'video') {
@@ -751,18 +817,37 @@
       if (f.timeEnd) params.pubtime_end_s = f.timeEnd;
     }
 
-    let json = await apiGet('https://api.bilibili.com/x/web-interface/wbi/search/type?' + encWbi(params, keys.img, keys.sub));
-    if (!json || json.code !== 0) {
-      const legacy = Object.keys(params).map(k => k + '=' + encodeURIComponent(params[k])).join('&');
-      json = await apiGet('https://api.bilibili.com/x/web-interface/search/type?' + legacy);
+    const legacy = Object.keys(params).map(k => k + '=' + encodeURIComponent(params[k])).join('&');
+    const candidates = [];
+    if (keys) candidates.push('https://api.bilibili.com/x/web-interface/wbi/search/type?' + encWbi(params, keys.img, keys.sub));
+    candidates.push('https://api.bilibili.com/x/web-interface/search/type?' + legacy);
+
+    let lastCode = null, lastMsg = '', risk = false;
+    for (const url of candidates) {
+      let json;
+      try { json = await apiGet(url); }
+      catch (e) { lastMsg = e.message || '请求失败'; continue; }
+      if (json && json.code === 0) {
+        const data = json.data || {};
+        const list = normalize(data.result, state.type);
+        const numPages = data.numPages || 0;
+        return { list, hasMore: !!list.length && page < numPages, numResults: data.numResults || 0 };
+      }
+      lastCode = json && json.code;
+      lastMsg = (json && json.message) || '';
+      if (lastCode === -412 || lastCode === -352) risk = true;
     }
-    if (!json || json.code !== 0) {
-      throw new Error((json && json.message) ? json.message + '（code ' + json.code + '）' : '接口返回异常');
+
+    if (risk) {
+      throw new Error('B 站风控拦截（code ' + lastCode + '）。' +
+        (guestOk
+          ? '已写入访客设备标识仍被拦截：请刷新一次 www.bilibili.com 让 Cookie 生效后重试；若浏览器设置了「阻止所有 Cookie」，请放行 bilibili.com。'
+          : '未能建立访客身份（可能被浏览器的 Cookie 策略阻止）：请允许 bilibili.com 的 Cookie 后重试。') +
+        ' 未登录 / 无痕模式本身是支持的，不需要登录 B 站。');
     }
-    const data = json.data || {};
-    const list = normalize(data.result, state.type);
-    const numPages = data.numPages || 0;
-    return { list, hasMore: !!list.length && page < numPages, numResults: data.numResults || 0 };
+    throw new Error(lastMsg
+      ? lastMsg + (lastCode != null ? '（code ' + lastCode + '）' : '')
+      : '接口返回异常，未能取得搜索结果');
   }
 
   /* --- 客户端兜底筛选（保证官方参数失效时仍然生效） --- */
@@ -1524,8 +1609,10 @@
       renderFoot();
     } catch (err) {
       if (myId !== state.reqId) return;
-      setStatus('搜索失败：' + escapeHtml(err.message) + '<br>' + fallbackLinks());
+      setStatus('搜索失败：' + escapeHtml(err.message) +
+        '<br><a data-act="retry">重新建立访客身份并重试</a><br>' + fallbackLinks());
       bindFallback();
+      bindRetry();
     } finally {
       state.loading = false;
     }
@@ -1602,6 +1689,21 @@
     });
   }
 
+  // 失败后重新引导访客身份并重试（无痕模式下 Cookie 可能刚写入，需要重来一次）
+  function bindRetry() {
+    [].forEach.call(statusEl.querySelectorAll('[data-act=retry]'), el => {
+      el.addEventListener('click', async () => {
+        guestPromise = null;
+        guestOk = false;
+        try { GM_deleteValue(WBI_CACHE_KEY); } catch (e) { }
+        setStatus('正在重建访客身份…');
+        await ensureGuestIdentity();
+        clearList();
+        runSearch(true);
+      });
+    });
+  }
+
   // 空结果时的一键退路：关掉严格过滤再搜一次
   function bindRelax() {
     [].forEach.call(statusEl.querySelectorAll('[data-act=relax]'), el => {
@@ -1620,7 +1722,7 @@
     footEl.innerHTML = `
       <span>↑↓ 选择 · Enter 打开 · Ctrl+Enter/中键 新标签 · Alt+K 唤出</span>
       <span style="margin-left:auto">
-        <a data-ext="bilibili">B站原版</a> · <a data-ext="google">Google</a> · <a data-ext="bing">Bing</a> · <a data-act="help">语法帮助</a> · <a data-act="perm">🔐 权限说明</a>
+        <a data-ext="bilibili">B站原版</a> · <a data-ext="google">Google</a> · <a data-ext="bing">Bing</a> · <a data-act="help">语法帮助</a> · <a data-act="perm">🔐 权限 / 访客模式</a>
       </span>`;
     [].forEach.call(footEl.querySelectorAll('[data-ext]'), el => {
       el.addEventListener('click', () => {
@@ -1793,7 +1895,7 @@
   function renderSettings() {
     listEl.innerHTML = ''; chipsEl.hidden = true; setStatus('');
 
-    /* 说明区（AI 编写 + Cookie 权限）：
+    /* 说明区（AI 编写 + 权限 / 访客模式）：
      * 第一次打开设置时默认展开，并带「我已知晓」按钮；点过之后记住（cfg.ackNotices），
      * 后续默认收起成一行，需要时再点开查看。 */
     let permHtml;
@@ -1810,21 +1912,23 @@
       反馈，源码完全公开可自行查看。</p>
       </div>
       <div class="bcs-perm">
-      <div class="bcs-perm-h">🔐 关于 Cookie 权限</div>
-      <p><b>脚本会申请 Cookie 权限，只为一件事</b>：当 B 站接口返回风控错误
-      <code>-412 请求被拦截</code> / <code>-352 风险等级不足</code> 时，写入一个名为
-      <code>buvid3</code> 的设备标识，让后续搜索请求能通过校验。这个值取自 B 站官方接口
-      <code>/x/frontend/finger/spi</code>，等同于 B 站在新设备上首次访问时自己做的事。</p>
-      <p><b>它没有做什么</b>：脚本全文只有一处 <code>GM_cookie.set()</code>（写入），
-      没有 <code>list</code> / <code>get</code> / <code>delete</code>，
-      因此<b>读不到</b>你的登录态或任何其它 Cookie；写入的值不外传，脚本也没有任何第三方服务器，
-      全部请求直连 <code>bilibili.com</code>。</p>
-      <p><b>不想要这个权限？</b>删掉脚本头部 <code>// @grant GM_cookie</code>
-      这一行即可彻底移除。代码已做保护，移除后其余功能<b>完全正常</b>，
-      只是遇到风控时无法自动恢复（会提示你手动打开一次 B 站）。</p>
-      <p class="bcs-perm-tip">自行核对：在源码里搜索 <code>GM_cookie.set(</code> —— 只有 1 处（第 321 行附近）；
-      搜索 <code>GM_cookie.list(</code> / <code>.get(</code> / <code>.delete(</code> —— 0 处。
-      除了这一处写入，其它出现的地方都只是注释和这段文字本身。</p>
+      <div class="bcs-perm-h">🔐 权限与「未登录 / 无痕模式」说明</div>
+      <p><b>本脚本不申请 Cookie 权限</b>，源码中也没有任何 <code>GM_cookie</code> 调用；
+      不读取、不导出、不上传你的登录态或任何 Cookie。全部请求直连 <code>bilibili.com</code>，
+      没有第三方服务器。</p>
+      <p><b>那未登录 / 无痕模式为什么能搜？</b>B 站的搜索接口要求请求带一个「访客设备标识」，
+      缺了就返回 <code>-412 请求被拦截</code> / <code>-352 风险等级不足</code>。
+      普通会话里这个 Cookie 是 B 站页面自己种的；无痕模式刚打开时没有，
+      所以脚本会调 B 站官方指纹接口 <code>/x/frontend/finger/spi</code> 取回
+      <code>b_3</code> / <code>b_4</code>，用 <code>document.cookie</code> 写成
+      <code>buvid3</code> / <code>buvid4</code>（外加 <code>b_nut</code> 时间戳）——
+      <b>和 B 站页面自己做的事完全一样</b>，不需要登录。</p>
+      <p><b>请求怎么带上的？</b>优先用页面上下文的
+      <code>fetch(credentials:'include')</code>，浏览器会自动携带当前（含无痕）会话的 Cookie；
+      若被 CSP / CORS 挡住，再退回 <code>GM_xmlhttpRequest</code>。</p>
+      <p class="bcs-perm-tip">自行核对：源码里搜索 <code>GM_cookie.</code>（带点号的方法调用）—— 0 处；
+      搜索 <code>document.cookie</code> —— 只有写入访客标识和检测是否已存在两处。
+      若浏览器设置了「阻止所有 Cookie」，无痕模式仍可能无法建立访客身份，此时会给出明确提示。</p>
       </div>
       <div class="bcs-perm-ack">
         <button class="bcs-toggle bcs-ack" data-act="ack">我已知晓</button>
@@ -1834,7 +1938,7 @@
       permHtml = `
       <div class="bcs-perm-ack">
         <button class="bcs-toggle" data-act="expand">查看说明</button>
-        <span>AI 编写说明 · Cookie 权限说明（已确认过，默认收起）</span>
+        <span>AI 编写说明 · 权限与访客模式说明（已确认过，默认收起）</span>
       </div>`;
     }
 
@@ -1896,7 +2000,7 @@
         </span></div>
       <div class="bcs-set-row"><span>筛选预设<em>★ 设为该类目默认 · ✎ 重命名 · ✕ 删除；默认预设会在每次打开面板时自动套用</em></span>
         <span class="bcs-preset-list">${presets.length ? presets.map(p => `<span class="bcs-tag"><i data-pact="def" data-pid="${escapeHtml(p.id)}" title="设为默认">${p.def ? '★' : '☆'}</i><b>${escapeHtml(p.name)}</b><em style="font-style:normal">${typeLabel(p.type)}</em><i data-pact="ren" data-pid="${escapeHtml(p.id)}">✎</i><i data-pact="del" data-pid="${escapeHtml(p.id)}">✕</i></span>`).join('') : '<span style="color:var(--bcs-sub);font-size:12px">还没有预设，去筛选栏点「＋ 保存当前」</span>'}</span></div>
-      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.5.0 · AI 辅助编写 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
+      <div class="bcs-set-row"><span style="color:var(--bcs-sub)">版本 2.6.0 · AI 辅助编写 · 数据直连 B 站官方接口，不经过任何第三方服务器</span>
         <button class="bcs-toggle" data-act="reset">恢复默认</button></div>`;
 
     settingsEl.querySelectorAll('.bcs-set-row[data-key]').forEach(row => {
@@ -2199,6 +2303,8 @@
     if (dp0) applyPreset(dp0, false);
     hijack();
     killDropdownStatic();
+    // 提前建立访客身份，避免第一次搜索时 Cookie 还没写好就被风控拦下
+    ensureGuestIdentity();
 
     document.addEventListener('keydown', e => {
       if (cfg.hotkey && !capturingHotkey) {
