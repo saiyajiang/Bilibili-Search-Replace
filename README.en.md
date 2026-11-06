@@ -11,37 +11,31 @@
 
 ---
 
-## ⚠️ About the Cookie permission (please read before installing)
+## 🔐 Permissions & logged-out / incognito mode
 
-**Tampermonkey will warn that this script requests Cookie access. That is a high-sensitivity permission and you deserve to know exactly what it is used for.**
+**This script does not request the Cookie permission** and contains no `GM_cookie` calls. It never reads, exports or uploads your login session or any other cookie. Every request goes directly to `api.bilibili.com` or `s.search.bilibili.com` — no third-party server, no proxy, no telemetry.
 
-**The single purpose:** when Bilibili returns risk-control codes `-412 (request intercepted)` / `-352 (insufficient risk level)`, the script calls Bilibili's own fingerprint endpoint `/x/frontend/finger/spi`, takes the device id `b_3` from the response, and writes it into a cookie named `buvid3` (domain `.bilibili.com`, 1 year) so subsequent search requests pass validation. This is exactly what Bilibili itself does the first time you visit from a new device.
+### Why logged-out / incognito searches used to return nothing
 
-**What it does NOT do** (all verifiable):
+Bilibili's search API requires a **guest device id**; without it the API answers `-412 (request intercepted)` or `-352 (insufficient risk level)`. In a normal session Bilibili's own page plants that cookie. In a fresh incognito window it is missing, and the old code only tried to fix it *after* being blocked — via `GM_cookie.set`, which in some browsers cannot write into the current incognito session. The result was a total blank.
 
-| Boundary | Detail |
-|---|---|
-| **Write-only** | There is exactly one `GM_cookie.set()` call in the whole file. **No** `GM_cookie.list` / `get` / `delete` — so the script **cannot read** your login session or any other cookie |
-| **Nothing sent out** | The written value comes straight from bilibili.com's own response; the script does not construct, log or transmit it |
-| **No third-party server** | Every request goes to `api.bilibili.com` / `s.search.bilibili.com`. No other domain appears in the code |
-| **Not persistent** | Runs once, only when risk control actually triggers — at most once per page lifetime |
+Now it works in three steps:
 
-**Verify it yourself** — search the source:
+1. **Bootstrap guest identity up front**: call Bilibili's public fingerprint endpoint `/x/frontend/finger/spi`, take `b_3` / `b_4`, and write them as `buvid3` / `buvid4` (plus a `b_nut` timestamp) on `.bilibili.com` via `document.cookie` — exactly what Bilibili's own page does. **No login required.**
+2. **Use the page's own request channel**: prefer `unsafeWindow.fetch(url, { credentials: 'include' })`, so the browser automatically attaches the current (including incognito) session cookies; fall back to `GM_xmlhttpRequest` (with `withCredentials`) only if CSP / CORS blocks it.
+3. **Multiple API fallbacks**: `getWbiKeys()` no longer throws when it cannot get keys (when logged out, `/x/web-interface/nav` returns `code:-101` but `data.wbi_img` is still present); it returns `null` and the search falls through to the unsigned legacy endpoint.
+
+On failure the panel states whether it was risk control and whether guest identity was established, and offers a one-click "rebuild guest identity and retry".
+
+### Verify it yourself
 
 | Search for | Result |
 |---|---|
-| `GM_cookie.set(` | **1 hit** (the write described above) |
-| `GM_cookie.list(` / `.get(` / `.delete(` | **0 hits** |
+| `GM_cookie.` (actual method calls) | **0** |
+| `document.cookie` | only two spots: writing the guest ids and checking whether they already exist |
+| `GM_cookie.list` / `.get` / `.delete` | **0** |
 
-Aside from that single write, every other occurrence of `GM_cookie` in the file is a comment or this explanatory text.
-
-**Don't want the permission?** Delete this line from the script header and it's gone entirely:
-
-```js
-// @grant        GM_cookie
-```
-
-The code is guarded by `typeof GM_cookie === 'undefined'`, so **everything else keeps working**. The only difference: on `-412 / -352` it cannot auto-recover, and the script will tell you to open www.bilibili.com once manually.
+> If your browser is set to "block all cookies", incognito mode may still fail to establish a guest identity — the script will tell you. Allow cookies for `bilibili.com`; **you still do not need to log in**.
 
 ## Install
 
@@ -52,7 +46,7 @@ The code is guarded by `typeof GM_cookie === 'undefined'`, so **everything else 
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) (or Violentmonkey / Greasemonkey).
 2. Install from the Greasy Fork page above, or open the `.user.js` file on GitHub.
-3. The cookie permission is **optional** — the script works either way. If you'd rather not grant it, delete the `@grant GM_cookie` line before installing.
+3. No Bilibili login is needed — logged-out / incognito mode works too (see above).
 
 ## Why
 
@@ -131,7 +125,7 @@ Category filtering maps **sub-category → top-level category** before comparing
 | `GM_addStyle` | Inject panel styles |
 | `GM_setValue` / `GM_getValue` | Persist settings, history, presets, WBI key cache |
 | `GM_registerMenuCommand` | Tampermonkey menu entry |
-| `GM_cookie` | **Optional.** Writes a `buvid3` device-id cookie only on risk-control errors `-412 / -352` (write-only, never reads). Delete the line to drop the permission entirely — see "About the Cookie permission" above |
+| `unsafeWindow` | Sends requests via the page's own `fetch(credentials:'include')` so guest cookies from a logged-out / incognito session are attached |
 
 ## Compatibility
 
@@ -143,6 +137,7 @@ If you enable "Take over the top search box" in settings, the box is bound in th
 
 ## Changelog
 
+- **2.6.0** — Fixed **no results when logged out / in incognito**: guest identity is bootstrapped up front (`buvid3`/`buvid4`), requests use page-context `fetch(credentials:'include')`, and WBI key failures no longer abort the search; **the Cookie permission was removed entirely** (no `GM_cookie` calls); errors are now actionable with a one-click retry.
 - **2.5.0** — **No longer takes over the native search box by default** (`hijackTopSearch` defaults to off): Enter, the search button and the native dropdown all behave exactly as Bilibili intended, and the script works as a standalone panel opened from the persistent button or hotkey. Takeover is still available in settings (changing it requires a page reload).
 - **2.4.2** — Corrected an inaccurate authorship claim (it said the author had reviewed every line and verified in a real environment, which was not the case); fixed **uncommitted IME pinyin being searched and saved to history**: input is not processed during composition, and existing pinyin leftovers can be cleaned from the history in one click.
 - **2.4.1** — Fixed **duplicate results**: Bilibili's default ordering repeats the same video across pages, and strict filtering fetches several pages per search, so the same item showed up multiple times. Results are now de-duplicated across pages by business id (bvid / mid / roomid), with a "N duplicates removed" counter.
